@@ -2,3 +2,5 @@
 .clang-format
 docs/
 data/
+*.o
+mod_cpu
