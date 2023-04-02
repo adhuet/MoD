@@ -4,9 +4,10 @@ SHELL = bash
 
 INCLUDE = -Iinclude
 
-CFLAGS = -c -Wall -Werre -Wextra -O3
-CLFAGS += $(shell v='$(pkg-config --libs --cflags opencv)'; echo "$${v%.*}")
+CFLAGS = -Wall -Werror -Wextra -O3
+CFLAGS += $(shell pkg-config --cflags opencv4)
 
+LD_LIBS = $(shell pkg-config --libs opencv4)
 
 CPU_SRC = $(wildcard $(addsuffix /*.cpp, src/cpu))
 CPU_OBJS = $(CPU_SRC:.cpp=.o)
@@ -19,10 +20,10 @@ OBJS = $(CPU_OBJS)
 all: $(CPU_BIN)
 
 $(CPU_BIN): $(CPU_OBJS)
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ $(LD_LIBS)
 
 %.o: %.cpp
-	$(CC) -c $(CLFAGS) $(INCLUDE) -o $@ $<
+	$(CC) -c $(CFLAGS) $(INCLUDE) -o $@ $<
 
 clean:
 	$(RM) $(BINS) $(OBJS)
