@@ -4,3 +4,4 @@ docs/
 data/
 *.o
 mod_cpu
+.vscode
