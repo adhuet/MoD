@@ -1,18 +1,24 @@
 #include "mod.hpp"
+#include "utils.hpp"
 
 cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
 {
-    cv::Mat bgd(background.size(), CV_8UC1);
-    cv::Mat image(frame.size(), CV_8UC1);
+    // FIXME
+    // Semantically incorrect, s_image only hold 1 channel
+    // bgd and image are not correct representations of the two images
+    s_image bgd = toPtr(background);
+    s_image image = toPtr(frame);
 
     // (2) Convert both background and frame to grayscale
     grayscale(background, bgd);
     grayscale(frame, image);
-    return image;
 
     // (3) Smooth the two images
     blur(bgd, bgd, 15, 0.2);
     blur(image, image, 15, 0.2);
+
+    cv::Mat output = toMat(image);
+    return output;
 
     // (4) Compute the difference
     diff(bgd, image, image);

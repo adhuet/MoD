@@ -5,3 +5,4 @@ data/
 *.o
 mod_cpu
 .vscode
+testsuite

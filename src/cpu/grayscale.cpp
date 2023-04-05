@@ -1,6 +1,6 @@
 #include "mod.hpp"
 
-void grayscale(const cv::Mat &src, cv::Mat dst)
+void grayscale(const cv::Mat &src, s_image dst)
 {
     for (int i = 0; i < src.rows; i++)
     {
@@ -13,7 +13,7 @@ void grayscale(const cv::Mat &src, cv::Mat dst)
 
             uchar gray = 0.2989 * red + 0.5870 * green + 0.1140 * blue;
 
-            dst.at<uchar>(i, j) = gray;
+            dst.data[i * dst.width + j] = gray;
         }
     }
 }
