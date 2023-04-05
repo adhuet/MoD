@@ -17,11 +17,10 @@ cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
     blur(bgd, bgd, 15, 0.2);
     blur(image, image, 15, 0.2);
 
-    cv::Mat output = toMat(image);
-    return output;
-
     // (4) Compute the difference
     diff(bgd, image, image);
+    cv::Mat output = toMat(image);
+    return output;
 
     // (5) Morphological opening
     morphOpen(image, image, 15);

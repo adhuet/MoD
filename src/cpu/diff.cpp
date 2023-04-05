@@ -1,10 +1,7 @@
 #include "mod.hpp"
 
-void diff(cv::Mat src1, cv::Mat src2, cv::Mat dst)
+void diff(s_image src1, s_image src2, s_image dst)
 {
-    (void)src1;
-    (void)src2;
-    (void)dst;
-
-    return;
+    for (int i = 0; i < src1.height * src1.width; i++)
+        dst.data[i] = abs(src1.data[i] - src2.data[i]);
 }
