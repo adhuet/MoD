@@ -4,7 +4,7 @@
 cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
 {
     // FIXME
-    // Semantically incorrect, s_image only hold 1 channel
+    // Semantically incorrect, SImage only hold 1 channel
     // bgd and image are not correct representations of the two images
     SImage bgd(background);
     SImage image(frame);

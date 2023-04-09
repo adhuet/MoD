@@ -482,8 +482,6 @@ Test(morphObject, circleSimple)
 
     uchar *result = getCircleKernel(9);
 
-    // s_image res = { 9, 9, result };
-
     assertArrayEqual(expected, result, 9 * 9);
     delete[] result;
 }
