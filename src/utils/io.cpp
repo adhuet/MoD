@@ -8,7 +8,7 @@ SImage::SImage(int width, int height)
     , size(width * height)
     , nb_bytes(width * height * sizeof(uchar))
 {
-    this->data = (uchar *)malloc(this->nb_bytes);
+    this->data = new uchar[this->size];
 }
 
 SImage::SImage(int width, int height, uchar *buffer)
@@ -17,7 +17,7 @@ SImage::SImage(int width, int height, uchar *buffer)
     , size(width * height)
     , nb_bytes(width * height * sizeof(uchar))
 {
-    this->data = (uchar *)malloc(this->nb_bytes);
+    this->data = new uchar[this->size];
     memcpy(data, buffer, this->nb_bytes);
 }
 
@@ -27,13 +27,13 @@ SImage::SImage(const cv::Mat &mat)
     , size(width * height)
     , nb_bytes(width * height * sizeof(uchar))
 {
-    data = (uchar *)malloc(this->nb_bytes);
+    data = new uchar[this->size];
     memcpy(data, mat.ptr<uchar>(0), this->nb_bytes);
 }
 
 SImage::~SImage()
 {
-    free(data);
+    delete[] data;
 }
 
 SImage::SImage(const SImage &other)
@@ -44,7 +44,7 @@ SImage::SImage(const SImage &other)
         this->height = other.height;
         this->size = other.size;
         this->nb_bytes = other.nb_bytes;
-        this->data = (uchar *)malloc(this->nb_bytes);
+        this->data = new uchar[this->size];
         memcpy(this->data, other.data, this->nb_bytes);
     }
 }
