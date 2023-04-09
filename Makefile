@@ -18,7 +18,7 @@ CPU_OBJS = $(CPU_SRC:.cpp=.o)
 CPU_BIN = mod_cpu
 
 # UTILS FILES
-UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils)) src/cpu/blur.cpp
+UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils)) src/cpu/blur.cpp src/cpu/morph.cpp
 UTILS_OBJS = $(UTILS_SRC:.cpp=.o)
 
 # CUDA IMPLEMENTATION

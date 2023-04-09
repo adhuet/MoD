@@ -2,6 +2,34 @@
 
 #include "utils.hpp"
 
+// SImage::SImage(int width, int height)
+//     : width(width)
+//     , height(height)
+// {
+//     data = (uchar *)malloc(width * height * sizeof(uchar));
+// }
+
+// SImage::SImage(const cv::Mat &mat)
+//     : width(mat.cols)
+//     , height(mat.rows)
+// {
+//     data = (uchar *)malloc(width * height * sizeof(uchar));
+//     memcpy(data, mat.ptr<uchar>(0), width * height * sizeof(uchar));
+// }
+
+// SImage::~SImage()
+// {
+//     free(data);
+// }
+
+// SImage SImage::operator=(const SImage &img)
+// {
+//     std::cout << "Performing a copy!" << std::endl;
+//     SImage cop(img.width, img.height);
+//     memcpy(cop.data, img.data, img.width * img.height * sizeof(uchar));
+//     return cop;
+// }
+
 s_image toPtr(const cv::Mat &image)
 {
     int height = image.rows;

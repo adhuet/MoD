@@ -17,6 +17,7 @@ void blur(s_image src, s_image dst, size_t ksize, double sigma);
 void diff(s_image src1, s_image scr2, s_image dst);
 
 void morphOpen(s_image src, s_image dst, size_t ksize);
+void morphClose(s_image src, s_image dst, size_t ksize);
 
 void treshold(s_image src, s_image dst, unsigned char threshold,
               unsigned char maxval);

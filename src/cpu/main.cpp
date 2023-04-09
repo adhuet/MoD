@@ -57,8 +57,8 @@ int runCPU(cv::VideoCapture capture)
 
         cv::Mat output = detectObjectInFrameCPU(background, frame);
         cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
-        cv::putText(output, "Diff", cv::Point(10, 10),
-                    cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 255), 2);
+        cv::putText(output, "Output", cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN,
+                    1, cv::Scalar(0, 0, 255), 2);
 
         // Create a new image to hold the concatenated images
         cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
