@@ -28,17 +28,17 @@ static __attribute__((unused)) void printMatrix(float *mat, int size)
     std::cout << std::endl;
 }
 
-static __attribute__((unused)) void printMatrix(s_image mat)
-{
-    for (int i = 0; i < mat.height; i++)
-    {
-        for (int j = 0; j < mat.width; j++)
-            std::cout << static_cast<unsigned>(mat.data[i * mat.width + j])
-                      << " ";
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-}
+// static __attribute__((unused)) void printMatrix(s_image mat)
+// {
+//     for (int i = 0; i < mat.height; i++)
+//     {
+//         for (int j = 0; j < mat.width; j++)
+//             std::cout << static_cast<unsigned>(mat.data[i * mat.width + j])
+//                       << " ";
+//         std::cout << std::endl;
+//     }
+//     std::cout << std::endl;
+// }
 
 static __attribute__((unused)) void printMatrix(uchar *mat, int size)
 {
@@ -59,10 +59,12 @@ static void assertArrayEqual(uchar *arr1, uchar *arr2, int n)
                      arr2[i]);
 }
 
-void dilateBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize);
-void erodeBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize);
-void dilateBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize);
-void erodeBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize);
+void dilateBinary1(const SImage &src, SImage &dst, uchar *kernel, size_t ksize);
+void erodeBinary1(const SImage &src, SImage &dst, uchar *kernel, size_t ksize);
+void dilateBinary255(const SImage &src, SImage &dst, uchar *kernel,
+                     size_t ksize);
+void erodeBinary255(const SImage &src, SImage &dst, uchar *kernel,
+                    size_t ksize);
 
 Test(check, pass)
 {
@@ -78,38 +80,34 @@ Test(filter2D, identity)
     }
 
     cv::Mat AMat(9, 9, CV_8UC1, buffer1);
-    s_image A = toPtr(AMat);
-    s_image B = toPtr(AMat);
+    SImage A(AMat);
+    SImage B(AMat);
 
     float kernel[9] = { 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0 };
 
     filter2D(A, B, kernel, 3);
     assertArrayEqual(A.data, B.data, 81);
     free(buffer1);
-    free(A.data);
-    free(B.data);
 }
 
 Test(filter2D, simple)
 {
     cv::Mat AMat = cv::Mat::eye(3, 3, CV_8UC1);
-    s_image A = toPtr(AMat);
-    s_image B = toPtr(AMat);
+    SImage A(AMat);
+    SImage B(AMat);
 
     float kernel[9] = { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 };
 
     uchar expected[9] = { 2, 0, 0, 0, 3, 0, 0, 0, 2 };
 
-    // std::cout << "A" << std::endl;
-    // printMatrix(A);
+    // std::cout << "AMat" << std::endl;
+    // printMatrix(AMat);
+    // std::cout << "A" << std::endl << A << std::endl;
 
     filter2D(A, B, kernel, 3);
-    // std::cout << "B after filter:" << std::endl;
-    // printMatrix(B);
+    // std::cout << "B after filter:" << std::endl << B << std::endl;
 
-    assertArrayEqual(B.data, expected, 9);
-    free(A.data);
-    free(B.data);
+    assertArrayEqual(expected, B.data, 9);
 }
 
 Test(getGaussianMatrix, simple)
@@ -122,6 +120,7 @@ Test(getGaussianMatrix, simple)
 
     cr_assert(fabs(sum - 1.0) < 0.01, "Sum is not equal to 1, got sum = %.3f",
               sum);
+    delete[] kernel;
 }
 
 Test(morphological, dilationWikipedia)
@@ -162,18 +161,13 @@ Test(morphological, dilationWikipedia)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 11;
-    image.width = 11;
-    image.data = buffer;
+    SImage image(11, 11, buffer);
 
-    s_image result = { 11, 11, (uchar *)malloc(11 * 11 * sizeof(uchar)) };
+    SImage result(11, 11);
 
     dilateBinary1(image, result, kernel, 3);
 
     assertArrayEqual(expected, result.data, 11 * 11);
-
-    free(result.data);
 }
 
 Test(morphological, erosionWikipedia)
@@ -219,18 +213,13 @@ Test(morphological, erosionWikipedia)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 13;
-    image.width = 13;
-    image.data = buffer;
+    SImage image(13, 13, buffer);
 
-    s_image result = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage result(13, 13);
 
     erodeBinary1(image, result, kernel, 3);
 
     assertArrayEqual(expected, result.data, 13 * 13);
-
-    free(result.data);
 }
 
 Test(morphological, dilationCross)
@@ -238,10 +227,7 @@ Test(morphological, dilationCross)
     uchar buffer[5 * 5] = { 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1,
                             1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
 
-    s_image image;
-    image.height = 5;
-    image.width = 5;
-    image.data = buffer;
+    SImage image(5, 5, buffer);
 
     uchar kernel[3 * 3] = { 0, 1, 0, 1, 1, 1, 0, 1, 0 };
 
@@ -255,16 +241,14 @@ Test(morphological, dilationCross)
     };
     // clang-format on
 
-    s_image result = { 5, 5, (uchar *)malloc(5 * 5 * sizeof(uchar)) };
+    SImage result(5, 5);
 
     dilateBinary1(image, result, kernel, 3);
     assertArrayEqual(expected, result.data, 5 * 5);
     // std::cout << "Result:"
     //           << "result.data[0] = " << static_cast<unsigned>(result.data[0])
-    //           << std::endl;
-    // printMatrix(result);
-
-    free(result.data);
+    //           << std::endl
+    //           << result;
 }
 
 Test(morphological, dilateCircle)
@@ -315,18 +299,13 @@ Test(morphological, dilateCircle)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 13;
-    image.width = 13;
-    image.data = buffer;
+    SImage image(13, 13, buffer);
 
-    s_image result = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage result(13, 13);
 
     dilateBinary1(image, result, kernel, 9);
 
     assertArrayEqual(expected, result.data, 13 * 13);
-
-    free(result.data);
 }
 
 Test(morphological, erodeCircle)
@@ -377,18 +356,13 @@ Test(morphological, erodeCircle)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 13;
-    image.width = 13;
-    image.data = buffer;
+    SImage image(13, 13, buffer);
 
-    s_image result = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage result(13, 13);
 
     erodeBinary1(image, result, kernel, 9);
 
     assertArrayEqual(expected, result.data, 13 * 13);
-
-    free(result.data);
 }
 
 Test(morphological, dilation255)
@@ -429,18 +403,13 @@ Test(morphological, dilation255)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 11;
-    image.width = 11;
-    image.data = buffer;
+    SImage image(11, 11, buffer);
 
-    s_image result = { 11, 11, (uchar *)malloc(11 * 11 * sizeof(uchar)) };
+    SImage result(11, 11);
 
     dilateBinary255(image, result, kernel, 3);
 
     assertArrayEqual(expected, result.data, 11 * 11);
-
-    free(result.data);
 }
 
 Test(morphological, erosion255)
@@ -486,18 +455,13 @@ Test(morphological, erosion255)
     };
     // clang-format on
 
-    s_image image;
-    image.height = 13;
-    image.width = 13;
-    image.data = buffer;
+    SImage image(13, 13, buffer);
 
-    s_image result = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage result(13, 13);
 
     erodeBinary255(image, result, kernel, 3);
 
     assertArrayEqual(expected, result.data, 13 * 13);
-
-    free(result.data);
 }
 
 Test(morphObject, circleSimple)
@@ -586,27 +550,20 @@ Test(morphological, morphOpen_1)
 
     uchar *kernel = getCircleKernel(5);
 
-    s_image image = { 13, 13, buffer };
+    SImage image(13, 13, buffer);
 
-    s_image dilated = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
-
+    SImage dilated(13, 13);
     dilateBinary255(image, dilated, kernel, 5);
 
-    s_image dilatedEroded = { 13, 13,
-                              (uchar *)malloc(13 * 13 * sizeof(uchar)) };
-
+    SImage dilatedEroded(13, 13);
     erodeBinary255(dilated, dilatedEroded, kernel, 5);
 
-    s_image resultOpened = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
-
+    SImage resultOpened(13, 13);
     morphOpen(image, resultOpened, 5);
 
     assertArrayEqual(dilatedEroded.data, resultOpened.data, 13 * 13);
 
     delete[] kernel;
-    free(dilated.data);
-    free(dilatedEroded.data);
-    free(resultOpened.data);
 }
 
 Test(morphological, morphClose_1)
@@ -629,23 +586,20 @@ Test(morphological, morphClose_1)
     };
     // clang-format on
 
-    s_image image = { 13, 13, buffer };
+    SImage image(13, 13, buffer);
+
     uchar *kernel = getCircleKernel(5);
 
-    s_image eroded = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage eroded(13, 13);
     erodeBinary255(image, eroded, kernel, 5);
 
-    s_image erodedDilated = { 13, 13,
-                              (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage erodedDilated(13, 13);
     dilateBinary255(eroded, erodedDilated, kernel, 5);
 
-    s_image resultClosed = { 13, 13, (uchar *)malloc(13 * 13 * sizeof(uchar)) };
+    SImage resultClosed(13, 13);
     morphClose(image, resultClosed, 5);
 
     assertArrayEqual(erodedDilated.data, resultClosed.data, 13 * 13);
 
-    free(kernel);
-    free(eroded.data);
-    free(erodedDilated.data);
-    free(resultClosed.data);
+    delete[] kernel;
 }

@@ -6,8 +6,8 @@ cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
     // FIXME
     // Semantically incorrect, s_image only hold 1 channel
     // bgd and image are not correct representations of the two images
-    s_image bgd = toPtr(background);
-    s_image image = toPtr(frame);
+    SImage bgd(background);
+    SImage image(frame);
 
     // (2) Convert both background and frame to grayscale
     grayscale(background, bgd);
@@ -25,8 +25,7 @@ cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
 
     // (5) Morphological opening
     morphOpen(image, image, 15);
-    cv::Mat output = toMat(image);
-    return output;
+    return image.toCVMat();
 
     // (6) Threshold the image and get connected components bboxes
     auto bboxes = connectedComponents(image);

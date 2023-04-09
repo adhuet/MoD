@@ -1,6 +1,7 @@
 #include "mod.hpp"
 
-void dilateBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize)
+void dilateBinary255(const SImage &src, SImage &dst, uchar *kernel,
+                     size_t ksize)
 {
     for (int y = 0; y < src.height; y++)
     {
@@ -33,7 +34,7 @@ void dilateBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize)
     }
 }
 
-void erodeBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize)
+void erodeBinary255(const SImage &src, SImage &dst, uchar *kernel, size_t ksize)
 {
     for (int y = 0; y < src.height; y++)
     {
@@ -66,7 +67,7 @@ void erodeBinary255(s_image src, s_image dst, uchar *kernel, size_t ksize)
     }
 }
 
-void dilateBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize)
+void dilateBinary1(const SImage &src, SImage &dst, uchar *kernel, size_t ksize)
 {
     for (int y = 0; y < src.height; y++)
     {
@@ -99,7 +100,7 @@ void dilateBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize)
     }
 }
 
-void erodeBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize)
+void erodeBinary1(const SImage &src, SImage &dst, uchar *kernel, size_t ksize)
 {
     for (int y = 0; y < src.height; y++)
     {
@@ -132,24 +133,21 @@ void erodeBinary1(s_image src, s_image dst, uchar *kernel, size_t ksize)
     }
 }
 
-void morphOpen(s_image src, s_image dst, size_t ksize)
+void morphOpen(const SImage &src, SImage &dst, size_t ksize)
 {
     uchar *kernel = getCircleKernel(ksize);
-    s_image tmp = { src.width, src.height,
-                    (uchar *)malloc(src.width * src.height * sizeof(uchar)) };
+    SImage tmp = src;
+
     dilateBinary255(src, tmp, kernel, ksize);
     erodeBinary255(tmp, dst, kernel, ksize);
     delete[] kernel;
-    free(tmp.data);
 }
 
-void morphClose(s_image src, s_image dst, size_t ksize)
+void morphClose(const SImage &src, SImage &dst, size_t ksize)
 {
     uchar *kernel = getCircleKernel(ksize);
-    s_image tmp = { src.width, src.height,
-                    (uchar *)malloc(src.width * src.height * sizeof(uchar)) };
+    SImage tmp = src;
     erodeBinary255(src, tmp, kernel, ksize);
     dilateBinary255(tmp, dst, kernel, ksize);
     delete[] kernel;
-    free(tmp.data);
 }

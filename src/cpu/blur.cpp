@@ -38,7 +38,7 @@ float *getGaussianMatrix(size_t ksize, double sigma)
 
 // Try the 2 pass algo (horizontal then vertical)
 // Need a convolution
-void blur(s_image src, s_image dst, size_t ksize, double sigma)
+void blur(const SImage &src, SImage &dst, size_t ksize, double sigma)
 {
     float *gaussianMatrix = getGaussianMatrix(ksize, sigma);
     filter2D(src, dst, gaussianMatrix, ksize);

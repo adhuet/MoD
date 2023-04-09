@@ -1,6 +1,6 @@
 #include "mod.hpp"
 
-void grayscale(const cv::Mat &src, s_image dst)
+void grayscale(const cv::Mat &src, SImage &dst)
 {
     for (int i = 0; i < src.rows; i++)
     {

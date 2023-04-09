@@ -3,7 +3,7 @@
 // FIXME
 // Check out Summed Area Tables maybe? Allows to apply filters in constant
 // complexity
-void filter2D(s_image src, s_image dst, float *kernel, size_t ksize)
+void filter2D(const SImage &src, SImage &dst, float *kernel, size_t ksize)
 {
     for (int y = 0; y < src.height; y++)
     {
