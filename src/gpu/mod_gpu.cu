@@ -43,6 +43,8 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
     blurGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
                                    d_gaussianKernel, ksize);
 
+    diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
+
     cv::Mat output(cv::Size(width, height), CV_8UC1);
     cudaMemcpy(output.ptr<uchar>(0), d_input, numPixels * sizeof(uchar),
                cudaMemcpyDeviceToHost);
