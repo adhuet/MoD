@@ -9,6 +9,8 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
     const int numPixels = height * width;
     const size_t ksize = 15;
     const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
+    const uchar threshold = 20;
+    const uchar maxval_tresh = 255;
 
     uchar3 *d_background;
     uchar3 *d_frame;
@@ -44,6 +46,8 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
                                    d_gaussianKernel, ksize);
 
     diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
+
+    thresholdGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width, threshold, maxval_tresh);
 
     cv::Mat output(cv::Size(width, height), CV_8UC1);
     cudaMemcpy(output.ptr<uchar>(0), d_input, numPixels * sizeof(uchar),

@@ -16,5 +16,5 @@ __global__ void blurGPU(const uchar *src, uchar *dst, int height, int width,
 
 __global__ void diffGPU(const uchar *src1, const uchar *src2, uchar *dst, int height, int width);
 
-
+__global__ void thresholdGPU(const uchar *src, uchar *dst, int height, int width, uchar threshold, uchar maxval);
 #endif
