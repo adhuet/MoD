@@ -54,8 +54,11 @@ $(TEST_BIN): $(UTILS_OBJS) $(TEST_OBJS)
 check: $(TEST_BIN)
 	./testsuite -j4 --verbose
 
-run: $(CPU_BIN)
-	./$(CPU_BIN) $(INPUT_FILE)
+# run: $(CPU_BIN)
+# 	./$(CPU_BIN) $(INPUT_FILE)
+
+run: $(CUDA_BIN)
+	./$(CUDA_BIN) $(INPUT_FILE)
 
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) $(INCLUDE) -o $@ $<

@@ -8,7 +8,9 @@
 
 cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame);
 
-__global__ void grayscaleGPU(const uchar3 *src, unsigned char *dst, int rows,
-                             int cols);
+__global__ void grayscaleGPU(const uchar3 *src, uchar *dst, int height,
+                             int width);
 
+__global__ void blurGPU(const uchar *src, uchar *dst, int height, int width,
+                        float *kernel, size_t ksize);
 #endif
