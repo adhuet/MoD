@@ -16,16 +16,18 @@ int runGPU(cv::VideoCapture capture)
     }
 
     cv::namedWindow("Input/Output", cv::WINDOW_AUTOSIZE);
+    size_t totalFrame = 0;
     for (;;)
     {
+        std::cout << '\r' << "Frame: " << totalFrame << std::flush;
         capture >> frame;
         if (frame.empty())
             break;
 
         cv::Mat output = detectObjectInFrameGPU(background, frame);
         cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
-        cv::putText(output, "Threshold", cv::Point(10, 10),
-                    cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 255), 2);
+        cv::putText(output, "Morph", cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN,
+                    1, cv::Scalar(0, 0, 255), 2);
 
         // Create a new image to hold the concatenated images
         cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
@@ -37,13 +39,15 @@ int runGPU(cv::VideoCapture capture)
         output.copyTo(
             concat(cv::Rect(frame.cols, 0, output.cols, output.rows)));
 
-        // Display the concatenated image
+        totalFrame++;
 
+        // Display the concatenated image
         // cv::imshow("Output", frame);
         cv::imshow("Input/Output", concat);
         if (cv::waitKey(20) >= 0)
             break;
     }
+    std::cout << std::endl;
     return 0;
 }
 
