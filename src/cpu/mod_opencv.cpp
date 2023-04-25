@@ -1,6 +1,6 @@
-#include "mod.hpp"
-
 #include <iostream>
+
+#include "mod.hpp"
 
 std::vector<cv::Rect> detectObjectInFrameOpenCV(const cv::Mat &background,
                                                 cv::Mat frame)
@@ -13,45 +13,22 @@ std::vector<cv::Rect> detectObjectInFrameOpenCV(const cv::Mat &background,
     cv::cvtColor(frame, image, cv::COLOR_BGR2GRAY);
 
     // (3) Smooth the two images
-    cv::GaussianBlur(image, image, cv::Size(5, 5), 0.2);
-    cv::GaussianBlur(bgd, bgd, cv::Size(5, 5), 0.2);
+    cv::GaussianBlur(image, image, cv::Size(15, 15), 0.2);
+    cv::GaussianBlur(bgd, bgd, cv::Size(15, 15), 0.2);
 
     // (4) Compute the difference
     cv::absdiff(image, bgd, image);
 
+    cv::threshold(image, image, 20, 255, cv::ThresholdTypes::THRESH_BINARY);
+
     // (5) Morphological opening
     cv::Mat kernel =
-        cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15));
+        cv::getStructuringElement(cv::MORPH_OPEN, cv::Size(15, 15));
     cv::morphologyEx(image, image, cv::MORPH_OPEN, kernel);
 
     // (6) Threshold the image and get connected components
-    cv::threshold(image, image, 20, 255, cv::ThresholdTypes::THRESH_BINARY);
-    cv::imshow("Before connected components", image);
-    cv::waitKey(20);
-    std::cout << "Doing connected components..." << std::endl;
-
     cv::Mat labels;
-    int nLabels = cv::connectedComponents(image, labels);
-    (void)nLabels;
-
-    // std::vector<cv::Vec3b> colors(nLabels);
-    // colors[0] = cv::Vec3b(0, 0, 0); // background
-    // for (int label = 1; label < nLabels; ++label)
-    // {
-    //     colors[label] =
-    //         cv::Vec3b((rand() & 255), (rand() & 255), (rand() & 255));
-    // }
-    //
-    // cv::Mat dst(image.size(), CV_8UC3);
-    // for (int r = 0; r < dst.rows; ++r)
-    // {
-    //     for (int c = 0; c < dst.cols; ++c)
-    //     {
-    //         int label = labels.at<int>(r, c);
-    //         cv::Vec3b &pixel = dst.at<cv::Vec3b>(r, c);
-    //         pixel = colors[label];
-    //     }
-    // }
+    cv::connectedComponents(image, labels);
 
     // (7) Compute and output the bboxes
     cv::Mat dst;

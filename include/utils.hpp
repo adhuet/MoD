@@ -15,6 +15,7 @@ public:
 
     SImage(int width, int height);
     SImage(int width, int height, uchar *buffer);
+    SImage(int width, int height, int *buffer);
     SImage(const cv::Mat &mat);
     ~SImage();
 
@@ -23,6 +24,19 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const SImage &img);
 
     cv::Mat toCVMat();
+};
+
+struct SBox
+{
+    int min_x;
+    int min_y;
+    int max_x;
+    int max_y;
+
+    cv::Rect toCVRect()
+    {
+        return cv::Rect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
+    }
 };
 
 void displayVideo(cv::VideoCapture video);

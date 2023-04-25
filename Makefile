@@ -18,7 +18,7 @@ CPU_OBJS = $(CPU_SRC:.cpp=.o)
 CPU_BIN = mod_cpu
 
 # UTILS FILES
-UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils)) src/cpu/blur.cpp src/cpu/morph.cpp
+UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils)) src/cpu/blur.cpp src/cpu/morph.cpp src/cpu/concomps.cpp src/cpu/unionfind.cpp
 UTILS_OBJS = $(UTILS_SRC:.cpp=.o)
 
 # CUDA IMPLEMENTATION
@@ -52,13 +52,13 @@ $(TEST_BIN): $(UTILS_OBJS) $(TEST_OBJS)
 	$(CC) -o $@ $^ -lcriterion $(LD_LIBS)
 
 check: $(TEST_BIN)
-	./testsuite -j4 --verbose
+	./testsuite -j4
 
 # run: $(CPU_BIN)
 # 	./$(CPU_BIN) $(INPUT_FILE)
 
-run: $(CUDA_BIN)
-	./$(CUDA_BIN) $(INPUT_FILE)
+run: $(CPU_BIN)
+	./$(CPU_BIN) $(INPUT_FILE)
 
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) $(INCLUDE) -o $@ $<

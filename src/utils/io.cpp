@@ -8,7 +8,8 @@ SImage::SImage(int width, int height)
     , size(width * height)
     , nb_bytes(width * height * sizeof(uchar))
 {
-    this->data = new uchar[this->size];
+    // With () so that array is initialized
+    this->data = new uchar[this->size]();
 }
 
 SImage::SImage(int width, int height, uchar *buffer)
@@ -19,6 +20,17 @@ SImage::SImage(int width, int height, uchar *buffer)
 {
     this->data = new uchar[this->size];
     memcpy(data, buffer, this->nb_bytes);
+}
+
+SImage::SImage(int width, int height, int *buffer)
+    : width(width)
+    , height(height)
+    , size(width * height)
+    , nb_bytes(width * height * sizeof(uchar))
+{
+    this->data = new uchar[this->size];
+    for (int i = 0; i < height * width; i++)
+        this->data[i] = static_cast<uchar>(buffer[i]);
 }
 
 SImage::SImage(const cv::Mat &mat)
@@ -63,7 +75,8 @@ std::ostream &operator<<(std::ostream &os, const SImage &img)
     for (int i = 0; i < img.height; i++)
     {
         for (int j = 0; j < img.width; j++)
-            os << static_cast<unsigned>(img.data[i * img.width + j]) << " ";
+            os << std::setfill(' ') << std::setw(3)
+               << static_cast<unsigned>(img.data[i * img.width + j]) << " ";
         os << std::endl;
     }
     os << std::endl;

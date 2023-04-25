@@ -6,7 +6,6 @@
 
 int runOpenCV(cv::VideoCapture capture)
 {
-    // displayVideo(capture);
     cv::Mat frame;
     cv::Mat background;
     capture >> background;
@@ -16,7 +15,7 @@ int runOpenCV(cv::VideoCapture capture)
         return -1;
     }
 
-    cv::namedWindow("Output", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("OpenCV", cv::WINDOW_AUTOSIZE);
     for (;;)
     {
         capture >> frame;
@@ -26,39 +25,11 @@ int runOpenCV(cv::VideoCapture capture)
         std::vector<cv::Rect> bboxes =
             detectObjectInFrameOpenCV(background, frame);
 
+        cv::Mat output;
+        frame.copyTo(output);
+
         for (const auto &bbox : bboxes)
-            cv::rectangle(frame, bbox, cv::Scalar(0, 0, 255), 2);
-
-        cv::imshow("Output", frame);
-        if (cv::waitKey(20) >= 0)
-            break;
-    }
-    return 0;
-}
-
-int runCPU(cv::VideoCapture capture)
-{
-    // displayVideo(capture);
-    cv::Mat frame;
-    cv::Mat background;
-    capture >> background;
-    if (background.empty())
-    {
-        std::cerr << "First frame of video (background) is empty!" << std::endl;
-        return -1;
-    }
-
-    cv::namedWindow("Input/Output", cv::WINDOW_AUTOSIZE);
-    for (;;)
-    {
-        capture >> frame;
-        if (frame.empty())
-            break;
-
-        cv::Mat output = detectObjectInFrameCPU(background, frame);
-        cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
-        cv::putText(output, "Output", cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN,
-                    1, cv::Scalar(0, 0, 255), 2);
+            cv::rectangle(output, bbox, cv::Scalar(0, 0, 255), 2);
 
         // Create a new image to hold the concatenated images
         cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
@@ -71,57 +42,61 @@ int runCPU(cv::VideoCapture capture)
             concat(cv::Rect(frame.cols, 0, output.cols, output.rows)));
 
         // Display the concatenated image
-
-        // cv::imshow("Output", frame);
-        cv::imshow("Input/Output", concat);
+        cv::imshow("OpenCV", concat);
         if (cv::waitKey(20) >= 0)
             break;
     }
     return 0;
 }
 
-// int runGPU(cv::VideoCapture capture)
-// {
-//     cv::Mat frame;
-//     cv::Mat background;
-//     capture >> background;
-//     if (background.empty())
-//     {
-//         std::cerr << "First frame of video (background) is empty!" <<
-//         std::endl; return -1;
-//     }
+int runCPU(cv::VideoCapture capture)
+{
+    cv::Mat frame;
+    cv::Mat background;
+    capture >> background;
+    if (background.empty())
+    {
+        std::cerr << "First frame of video (background) is empty!" << std::endl;
+        return -1;
+    }
 
-//     cv::namedWindow("Input/Output", cv::WINDOW_AUTOSIZE);
-//     for (;;)
-//     {
-//         capture >> frame;
-//         if (frame.empty())
-//             break;
+    int framenb = 0;
+    cv::namedWindow("CPU", cv::WINDOW_AUTOSIZE);
+    for (;;)
+    {
+        framenb++;
+        capture >> frame;
+        if (frame.empty())
+            break;
 
-//         cv::Mat output = detectObjectInFrameGPU(background, frame);
-//         cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
-//         cv::putText(output, "Grayscale", cv::Point(10, 10),
-//                     cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 255), 2);
+        auto bboxes = detectObjectInFrameCPU(background, frame);
+        // cv::Mat output = detectObjectInFrameCPU(background, frame);
 
-//         // Create a new image to hold the concatenated images
-//         cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
+        cv::Mat output;
+        frame.copyTo(output);
+        for (const auto &bbox : bboxes)
+            cv::rectangle(output, bbox, cv::Scalar(0, 0, 255), 2);
 
-//         // Copy the first image into the left half of the new image
-//         frame.copyTo(concat(cv::Rect(0, 0, frame.cols, frame.rows)));
+        cv::putText(output, "Detected", cv::Point(10, 10),
+                    cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 255), 2);
 
-//         // Copy the second image into the right half of the new image
-//         output.copyTo(
-//             concat(cv::Rect(frame.cols, 0, output.cols, output.rows)));
+        // Create a new image to hold the concatenated images
+        cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
 
-//         // Display the concatenated image
+        // Copy the first image into the left half of the new image
+        frame.copyTo(concat(cv::Rect(0, 0, frame.cols, frame.rows)));
 
-//         // cv::imshow("Output", frame);
-//         cv::imshow("Input/Output", concat);
-//         if (cv::waitKey(20) >= 0)
-//             break;
-//     }
-//     return 0;
-// }
+        // Copy the second image into the right half of the new image
+        output.copyTo(
+            concat(cv::Rect(frame.cols, 0, output.cols, output.rows)));
+
+        // Display the concatenated image
+        cv::imshow("CPU", concat);
+        if (cv::waitKey(20) >= 0)
+            break;
+    }
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -141,6 +116,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    int retval = runCPU(capture);
+    int retval = runOpenCV(capture);
     return (retval == -1) ? EXIT_FAILURE : EXIT_SUCCESS;
 }

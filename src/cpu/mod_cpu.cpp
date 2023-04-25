@@ -1,7 +1,8 @@
 #include "mod.hpp"
 #include "utils.hpp"
 
-cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
+std::vector<cv::Rect> detectObjectInFrameCPU(const cv::Mat &background,
+                                             cv::Mat frame)
 {
     // FIXME
     // Semantically incorrect, SImage only hold 1 channel
@@ -25,14 +26,15 @@ cv::Mat detectObjectInFrameCPU(const cv::Mat &background, cv::Mat frame)
 
     // (5) Morphological opening
     morphOpen(image, image, 15);
-    return image.toCVMat();
+
+    int *labelled = (int *)malloc(image.width * image.height * sizeof(int));
 
     // (6) Threshold the image and get connected components bboxes
-    auto bboxes = connectedComponents(image);
+    connectedComponents(image, labelled);
+    SImage output(image.width, image.height, labelled);
+    std::vector<cv::Rect> bboxes =
+        getBoundingBoxes(labelled, image.width, image.height);
+    free(labelled);
 
-    // (7) Draw the bboxes on output
-    for (const auto &bbox : bboxes)
-        cv::rectangle(frame, bbox, cv::Scalar(0, 0, 255), 2);
-
-    return frame;
+    return bboxes;
 }
