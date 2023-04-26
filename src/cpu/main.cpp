@@ -116,6 +116,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    int retval = runOpenCV(capture);
+    int retval = runCPU(capture);
     return (retval == -1) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
