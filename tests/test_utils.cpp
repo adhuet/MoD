@@ -29,18 +29,6 @@ static __attribute__((unused)) void printMatrix(float *mat, int size)
     std::cout << std::endl;
 }
 
-// static __attribute__((unused)) void printMatrix(s_image mat)
-// {
-//     for (int i = 0; i < mat.height; i++)
-//     {
-//         for (int j = 0; j < mat.width; j++)
-//             std::cout << static_cast<unsigned>(mat.data[i * mat.width + j])
-//                       << " ";
-//         std::cout << std::endl;
-//     }
-//     std::cout << std::endl;
-// }
-
 static __attribute__((unused)) void printMatrix(uchar *mat, int size)
 {
     for (int i = 0; i < size; i++)

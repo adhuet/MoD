@@ -15,7 +15,7 @@ int runGPU(cv::VideoCapture capture)
         return -1;
     }
 
-    cv::namedWindow("Input/Output", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("GPU", cv::WINDOW_AUTOSIZE);
     size_t totalFrame = 0;
     for (;;)
     {
@@ -42,8 +42,7 @@ int runGPU(cv::VideoCapture capture)
         totalFrame++;
 
         // Display the concatenated image
-        // cv::imshow("Output", frame);
-        cv::imshow("Input/Output", concat);
+        cv::imshow("GPU", concat);
         if (cv::waitKey(20) >= 0)
             break;
     }
