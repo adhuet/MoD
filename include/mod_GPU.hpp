@@ -25,4 +25,6 @@ __global__ void dilateGPU(const uchar *src, uchar *dst, int height, int width,
 __global__ void erodeGPU(const uchar *src, uchar *dst, int height, int width,
                          uchar *circleKernel, size_t ksize);
 
+__host__ void connectedComponentsGPU(const uchar *src, int *dst, int height, int width, dim3 gridDim, dim3 blockDim);
+
 #endif
