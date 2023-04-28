@@ -2,6 +2,19 @@
 #include <opencv2/opencv.hpp>
 
 #include "mod_GPU.hpp"
+#include "utils.hpp"
+
+static __attribute__((unused)) void printMatrix(int *mat, int height, int width)
+{
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+            std::cout << std::setfill(' ') << std::setw(6) << mat[i * width + j]
+                      << " ";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
 
 int runGPU(cv::VideoCapture capture)
 {
@@ -24,10 +37,16 @@ int runGPU(cv::VideoCapture capture)
         if (frame.empty())
             break;
 
-        cv::Mat output = detectObjectInFrameGPU(background, frame);
-        cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
-        cv::putText(output, "Morph", cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN,
-                    1, cv::Scalar(0, 0, 255), 2);
+        std::vector<cv::Rect> bboxes =
+            detectObjectInFrameGPU(background, frame);
+
+        cv::Mat output;
+        frame.copyTo(output);
+
+        for (const auto &bbox : bboxes)
+            cv::rectangle(output, bbox, cv::Scalar(0, 0, 255), 2);
+        cv::putText(output, "Detected", cv::Point(10, 10),
+                    cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 255), 2);
 
         // Create a new image to hold the concatenated images
         cv::Mat concat(output.rows, frame.cols + output.cols, output.type());
@@ -43,7 +62,7 @@ int runGPU(cv::VideoCapture capture)
 
         // Display the concatenated image
         cv::imshow("GPU", concat);
-        if (cv::waitKey(20) >= 0)
+        if (cv::waitKey(60) >= 0)
             break;
     }
     std::cout << std::endl;

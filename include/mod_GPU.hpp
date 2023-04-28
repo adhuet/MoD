@@ -6,7 +6,17 @@
 #include <opencv2/opencv.hpp>
 #include <vector_types.h>
 
-cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame);
+#define CUDA_WARN(XXX)                                                         \
+    do                                                                         \
+    {                                                                          \
+        if (XXX != cudaSuccess)                                                \
+            std::cerr << "CUDA Error: " << cudaGetErrorString(XXX)             \
+                      << ", at line " << __LINE__ << std::endl;                \
+        cudaDeviceSynchronize();                                               \
+    } while (0)
+
+std::vector<cv::Rect> detectObjectInFrameGPU(const cv::Mat &background,
+                                             const cv::Mat &frame);
 
 __global__ void grayscaleGPU(const uchar3 *src, uchar *dst, int height,
                              int width);
@@ -25,6 +35,11 @@ __global__ void dilateGPU(const uchar *src, uchar *dst, int height, int width,
 __global__ void erodeGPU(const uchar *src, uchar *dst, int height, int width,
                          uchar *circleKernel, size_t ksize);
 
-__host__ void connectedComponentsGPU(const uchar *src, int *dst, int height, int width, dim3 gridDim, dim3 blockDim);
+__global__ void initCCL(const uchar *src, int *dst, int height, int width);
+__global__ void mergeCCL(const uchar *src, int *dst, int height, int width);
+__global__ void compressCCL(const uchar *src, int *dst, int height, int width);
+
+__host__ void connectedComponentsGPU(const uchar *src, int *dst, int height,
+                                     int width, dim3 gridDim, dim3 blockDim);
 
 #endif

@@ -1,9 +1,11 @@
 #include "mod_GPU.hpp"
+#include "utils.hpp"
 
 float *getGaussianMatrix(size_t ksize, double sigma);
 uchar *getCircleKernel(size_t diameter);
 
-cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
+std::vector<cv::Rect> detectObjectInFrameGPU(const cv::Mat &background,
+                                             const cv::Mat &frame)
 {
     const int height = frame.rows;
     const int width = frame.cols;
@@ -25,27 +27,28 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
     float *d_gaussianKernel;
     uchar *d_circleKernel;
 
-    cudaMalloc(&d_background, numPixels * sizeof(uchar3));
-    cudaMalloc(&d_frame, numPixels * sizeof(uchar3));
-    cudaMalloc(&d_input, numPixels * sizeof(uchar));
-    cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
-    cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float));
-    cudaMalloc(&d_circleKernel,
-               morphologicalCircleDiameter * morphologicalCircleDiameter
-                   * sizeof(uchar));
-    cudaMalloc(&d_tmp, height * width * sizeof(uchar));
-    cudaMemset(d_tmp, 0, height * width * sizeof(uchar));
+    CUDA_WARN(cudaMalloc(&d_background, numPixels * sizeof(uchar3)));
+    CUDA_WARN(cudaMalloc(&d_frame, numPixels * sizeof(uchar3)));
+    CUDA_WARN(cudaMalloc(&d_input, numPixels * sizeof(uchar)));
+    CUDA_WARN(cudaMalloc(&d_bgd, numPixels * sizeof(uchar)));
+    CUDA_WARN(cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float)));
+    CUDA_WARN(cudaMalloc(&d_circleKernel,
+                         morphologicalCircleDiameter
+                             * morphologicalCircleDiameter * sizeof(uchar)));
+    CUDA_WARN(cudaMalloc(&d_tmp, height * width * sizeof(uchar)));
+    CUDA_WARN(cudaMemset(d_tmp, 0, height * width * sizeof(uchar)));
 
-    cudaMemcpy(d_background, background.ptr<uchar3>(0),
-               numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_frame, frame.ptr<uchar3>(0), numPixels * sizeof(uchar3),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_gaussianKernel, gaussianKernel, ksize * ksize * sizeof(float),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_circleKernel, circleKernel,
-               morphologicalCircleDiameter * morphologicalCircleDiameter
-                   * sizeof(uchar),
-               cudaMemcpyHostToDevice);
+    CUDA_WARN(cudaMemcpy(d_background, background.ptr<uchar3>(0),
+                         numPixels * sizeof(uchar3), cudaMemcpyHostToDevice));
+    CUDA_WARN(cudaMemcpy(d_frame, frame.ptr<uchar3>(0),
+                         numPixels * sizeof(uchar3), cudaMemcpyHostToDevice));
+    CUDA_WARN(cudaMemcpy(d_gaussianKernel, gaussianKernel,
+                         ksize * ksize * sizeof(float),
+                         cudaMemcpyHostToDevice));
+    CUDA_WARN(cudaMemcpy(d_circleKernel, circleKernel,
+                         morphologicalCircleDiameter
+                             * morphologicalCircleDiameter * sizeof(uchar),
+                         cudaMemcpyHostToDevice));
 
     dim3 blockDim(32, 32);
     dim3 gridDim(int(ceil((float)width / blockDim.x)),
@@ -68,14 +71,27 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
                                      d_circleKernel, ksize);
     erodeGPU<<<gridDim, blockDim>>>(d_tmp, d_input, height, width,
                                     d_circleKernel, ksize);
+    CUDA_WARN(cudaMemcpy(d_input, d_tmp, height * width * sizeof(uchar),
+                         cudaMemcpyDeviceToDevice));
     // cudaDeviceSynchronize();
-    cudaMemcpy(d_input, d_tmp, height * width * sizeof(uchar),
-               cudaMemcpyDeviceToDevice);
+    int *d_labelled;
+    cudaMalloc(&d_labelled, height * width * sizeof(int));
 
-    cv::Mat output(cv::Size(width, height), CV_8UC1);
-    cudaMemcpy(output.ptr<uchar>(0), d_input, numPixels * sizeof(uchar),
-               cudaMemcpyDeviceToHost);
+    initCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+    mergeCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+    compressCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
 
+    CUDA_WARN(cudaDeviceSynchronize());
+
+    std::vector<cv::Rect> bboxes;
+
+    // connectedComponentsGPU(d_input, d_labelled, height, width, gridDim,
+    //                        blockDim);
+    int *labelled = new int[height * width];
+    CUDA_WARN(cudaMemcpy(labelled, d_labelled, height * width * sizeof(int),
+                         cudaMemcpyDeviceToHost));
+    bboxes = getBoundingBoxes(labelled, width, height);
+    cudaFree(d_labelled);
     cudaFree(d_background);
     cudaFree(d_frame);
     cudaFree(d_input);
@@ -86,6 +102,9 @@ cv::Mat detectObjectInFrameGPU(const cv::Mat &background, cv::Mat frame)
 
     delete[] gaussianKernel;
     delete[] circleKernel;
+    delete[] labelled;
 
-    return output;
+    // return labelled;
+    return bboxes;
+    // return output.toCVMat();
 }

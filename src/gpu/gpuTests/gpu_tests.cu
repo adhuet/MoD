@@ -1,8 +1,10 @@
 #include <criterion/criterion.h>
 #include <cuda_runtime.h>
+#include <iomanip>
 #include <iostream>
 
 #include "mod_GPU.hpp"
+#include "utils.hpp"
 
 #define CUDA_WARN(XXX)                                                         \
     do                                                                         \
@@ -20,6 +22,31 @@ static void assertArrayEqual(T *arr1, T *arr2, int n)
         cr_assert_eq(arr1[i], arr2[i],
                      "Expected arr1[%d] = %d, got arr2[%d] = %d", i, arr1[i], i,
                      arr2[i]);
+}
+
+static __attribute__((unused)) void printMatrix(uchar *mat, int height,
+                                                int width)
+{
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+            std::cout << std::setfill(' ') << std::setw(3)
+                      << static_cast<unsigned>(mat[i * width + j]) << " ";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+static __attribute__((unused)) void printMatrix(int *mat, int height, int width)
+{
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+            std::cout << std::setfill(' ') << std::setw(3) << mat[i * width + j]
+                      << " ";
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
 }
 
 Test(check, pass)
@@ -195,8 +222,10 @@ Test(morphologicalGPU, erosion)
 
 Test(connectedComponents, simple4comps, .timeout = 3)
 {
+    constexpr int height = 13;
+    constexpr int width = 14;
     // clang-format off
-    uchar buffer[13 * 14] = {
+    uchar buffer[height * width] = {
           0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255,   0,   0,
         255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255,   0,   0,
@@ -212,43 +241,163 @@ Test(connectedComponents, simple4comps, .timeout = 3)
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
     };
 
-    __attribute__ ((unused)) int expected[13 * 14] = {
-          0,   0,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   2,   2,   2,   0,   0,   0,   0,   0,   0,  24,  24,   0,   0,
-          2,   2,   2,   2,   2,   0,   0,   0,   0,   0,  24,  24,   0,   0,
-          0,   2,   2,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   2,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    __attribute__ ((unused)) int expected[height * width] = {
+          0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   3,   3,   3,   0,   0,   0,   0,   0,   0,  25,  25,   0,   0,
+          3,   3,   3,   3,   3,   0,   0,   0,   0,   0,  25,  25,   0,   0,
+          0,   3,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0, 129,   0,   0,   0,   0,   0,   0, 136,   0,   0,   0,
-          0,   0, 129, 129, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-          0,   0,   0, 129,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 130,   0,   0,   0,   0,   0,   0, 137,   0,   0,   0,
+          0,   0, 130, 130, 130,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 130,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
           0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  
     };
     // clang-format on
 
+    // std::cout << "Input:" << std::endl;
+    // printMatrix(buffer, height, width);
+
     uchar *d_input;
     int *d_output;
 
-    int *output = (int *)malloc(13 * 14 * sizeof(int));
+    int *output = (int *)malloc(height * width * sizeof(int));
 
-    cudaMalloc(&d_input, 13 * 14 * sizeof(uchar));
-    cudaMalloc(&d_output, 13 * 14 * sizeof(int));
-    cudaMemcpy(d_input, buffer, 13 * 14 * sizeof(uchar),
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(int));
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
                cudaMemcpyHostToDevice);
 
     dim3 blockDim(4, 4);
-    dim3 gridDim(int(ceil((float)13 / blockDim.x)),
-                 int(ceil((float)14 / blockDim.y)));
-    connectedComponentsGPU(d_input, d_output, 13, 14, gridDim, blockDim);
-
+    dim3 gridDim(int(ceil((float)height / blockDim.x)),
+                 int(ceil((float)width / blockDim.y)));
+    // connectedComponentsGPU(d_input, d_output, height, width, gridDim,
+    // blockDim);
+    initCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
     CUDA_WARN(cudaDeviceSynchronize());
 
-    cudaMemcpy(output, d_output, 13 * 14 * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After initCCL:" << std::endl;
+    // printMatrix(output, height, width);
 
-    assertArrayEqual(expected, output, 13 * 14);
+    mergeCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
+    CUDA_WARN(cudaDeviceSynchronize());
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After mergeCCL:" << std::endl;
+    // printMatrix(output, height, width);
+
+    compressCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
+    CUDA_WARN(cudaDeviceSynchronize());
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After compressCCL (final):" << std::endl;
+    // printMatrix(output, height, width);
+
+    // std::cout << "Expected:" << std::endl;
+    // printMatrix(expected, height, width);
+
+    assertArrayEqual(expected, output, height * width);
+
+    cudaFree(d_input);
+    cudaFree(d_output);
+    free(output);
+}
+
+Test(bboxes, fourBboxes, .timeout = 3)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+    // clang-format off
+    uchar buffer[height * width] = {
+          0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255,   0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255,   0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+
+    __attribute__ ((unused)) int expected[height * width] = {
+          0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   3,   3,   3,   0,   0,   0,   0,   0,   0,  25,  25,   0,   0,
+          3,   3,   3,   3,   3,   0,   0,   0,   0,   0,  25,  25,   0,   0,
+          0,   3,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 130,   0,   0,   0,   0,   0,   0, 137,   0,   0,   0,
+          0,   0, 130, 130, 130,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 130,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  
+    };
+    // clang-format on
+
+    // std::cout << "Input:" << std::endl;
+    // printMatrix(buffer, height, width);
+
+    uchar *d_input;
+    int *d_output;
+
+    int *output = (int *)malloc(height * width * sizeof(int));
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(int));
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    dim3 blockDim(4, 4);
+    dim3 gridDim(int(ceil((float)height / blockDim.x)),
+                 int(ceil((float)width / blockDim.y)));
+    // connectedComponentsGPU(d_input, d_output, height, width, gridDim,
+    // blockDim);
+    initCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
+    CUDA_WARN(cudaDeviceSynchronize());
+
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After initCCL:" << std::endl;
+    // printMatrix(output, height, width);
+
+    mergeCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
+    CUDA_WARN(cudaDeviceSynchronize());
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After mergeCCL:" << std::endl;
+    // printMatrix(output, height, width);
+
+    compressCCL<<<gridDim, blockDim>>>(d_input, d_output, height, width);
+    CUDA_WARN(cudaDeviceSynchronize());
+    cudaMemcpy(output, d_output, height * width * sizeof(int),
+               cudaMemcpyDeviceToHost);
+    // std::cout << "After compressCCL (final):" << std::endl;
+    // printMatrix(output, height, width);
+
+    // std::cout << "Expected:" << std::endl;
+    // printMatrix(expected, height, width);
+
+    auto bboxes = getBoundingBoxes(output, width, height);
+
+    // for (const auto &box : bboxes)
+    // {
+    //     std::cout << box << std::endl;
+    // }
+
+    cr_assert_eq(bboxes.size(), 4, "Expected bboxes.size() == 4, got %d",
+                 bboxes.size());
 
     cudaFree(d_input);
     cudaFree(d_output);
