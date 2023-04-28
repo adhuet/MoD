@@ -77,7 +77,13 @@ run: $(CUDA_BIN)
 %.o: %.cu
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
-clean:
-	$(RM) $(BINS) $(OBJS) src/cpu/main.o
+benchsuite: src/benchmark.o
+	$(CC) -o benchsuite $^
 
-.PHONY: all clean run
+bench: benchsuite
+	./benchsuite
+
+clean:
+	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o benchsuite
+
+.PHONY: all clean run bench

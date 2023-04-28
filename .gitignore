@@ -8,3 +8,4 @@ mod_gpu
 .vscode
 testsuite
 gputestsuite
+benchsuite
