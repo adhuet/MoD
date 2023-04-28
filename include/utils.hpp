@@ -43,5 +43,6 @@ void displayVideo(cv::VideoCapture video);
 void filter2D(const SImage &src, SImage &dst, float *kernel, size_t ksize);
 float *getGaussianMatrix(size_t ksize, double sigma);
 uchar *getCircleKernel(size_t ksize);
+std::vector<cv::Rect> getBoundingBoxes(int *L, int width, int height);
 
 #endif
