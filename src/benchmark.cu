@@ -10,9 +10,17 @@
 #include "mod_GPU.hpp"
 #include "utils.hpp"
 
-#define CPU_VERSION 1.0
-#define GPU_VERSION 1.0
-#define OCV_VERSION 1.0
+#ifndef _CPU_VERSION
+#    define _CPU_VERSION 0.0
+#endif
+
+#ifndef _GPU_VERSION
+#    define _GPU_VERSION 0.0
+#endif
+
+#ifndef _OCV_VERSION
+#    define _OCV_VERSION 0.0
+#endif
 
 struct BM_times
 {
@@ -596,7 +604,7 @@ int main(int argc, char **argv)
               << "ms" << std::endl;
 
     std::cout << std::setfill('-') << std::setw(75) << "\n";
-    std::cout << "OPENCV Bench (v" << OCV_VERSION << "):" << std::endl;
+    std::cout << "OPENCV Bench (v" << _OCV_VERSION << "):" << std::endl;
 
     // Run opencv bench
     auto start = std::chrono::high_resolution_clock::now();
@@ -663,7 +671,7 @@ int main(int argc, char **argv)
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
-    std::cout << "CPU Bench (v" << CPU_VERSION << "):" << std::endl;
+    std::cout << "CPU Bench (v" << _CPU_VERSION << "):" << std::endl;
 
     // Run cpu bench
     start = std::chrono::high_resolution_clock::now();
@@ -754,7 +762,7 @@ int main(int argc, char **argv)
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
-    std::cout << "GPU Bench (v" << GPU_VERSION << "):" << std::endl;
+    std::cout << "GPU Bench (v" << _GPU_VERSION << "):" << std::endl;
 
     dim3 blockDim(32, 32);
     dim3 gridDim(int(ceil((float)width / blockDim.x)),

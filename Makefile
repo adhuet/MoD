@@ -4,6 +4,10 @@ SHELL = bash
 
 INCLUDE = -Iinclude
 
+CPU_VERSION = 1.0
+GPU_VERSION = 1.0
+OCV_VERSION = 1.0
+
 CFLAGS = -Wall -Werror -Wextra -O3 -std=c++17 -g
 # CFLAGS = -Wall -Werror -Wextra -O3 -std=c++17 -fsanitize=address -g
 # CFLAGS += $(shell pkg-config --cflags opencv4)
@@ -77,6 +81,7 @@ run: $(CUDA_BIN)
 %.o: %.cu
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
+benchsuite: CUDA_FLAGS += -D_CPU_VERSION=1.0 -D_GPU_VERSION=1.0 -D_OCV_VERSION=1.0
 benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS) $(CUDA_OBJS)
 	$(NVCC) -o $@ $^ $(LD_LIBS)
 
