@@ -1,4 +1,6 @@
 // #include <cuda_runtime.h>
+#include <chrono>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include <opencv2/opencv.hpp>
@@ -9,6 +11,143 @@
 #define CPU_VERSION 1.0
 #define GPU_VERSION 1.0
 #define OCV_VERSION 1.0
+
+struct BM_times
+{
+    double grayscale;
+    double blur;
+    double diff;
+    double threshold;
+    double morph;
+    double kernel_erodeGPU;
+    double kernel_dilateGPU;
+    double connectedComps;
+    double kernel_initCCL;
+    double kernel_mergeCCL;
+    double kernel_compressCCL;
+    double bboxes;
+    double other;
+    double get_gaussian_matrix;
+    double get_gaussian_circle;
+    double gpu_mem_management;
+};
+
+typedef struct BM_times BM_times;
+
+BM_times benchOpenCV(cv::VideoCapture capture)
+{
+    BM_times timers = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+    cv::Mat frame;
+    cv::Mat background;
+    capture >> background;
+    if (background.empty())
+        throw std::runtime_error("First frame of video (background is empty!)");
+
+    cv::Mat bgd;
+    cv::Mat image;
+    cv::Mat kernel;
+    cv::Mat labels;
+    cv::Mat dst;
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Rect> bboxes;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto start_step = start;
+    auto end_step = start;
+    auto end = start;
+
+    for (;;)
+    {
+        start = std::chrono::high_resolution_clock::now();
+        capture >> frame;
+        if (frame.empty())
+            break;
+
+        // grayscale
+        start_step = std::chrono::high_resolution_clock::now();
+        cv::cvtColor(background, bgd, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(frame, image, cv::COLOR_BGR2GRAY);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.grayscale += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+
+        // blur
+        start_step = std::chrono::high_resolution_clock::now();
+        cv::GaussianBlur(image, image, cv::Size(15, 15), 0.2);
+        cv::GaussianBlur(bgd, bgd, cv::Size(15, 15), 0.2);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.blur += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+
+        // diff
+        start_step = std::chrono::high_resolution_clock::now();
+        cv::absdiff(image, bgd, image);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.diff += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+
+        // threshold
+        start_step = std::chrono::high_resolution_clock::now();
+        cv::threshold(image, image, 20, 255, cv::ThresholdTypes::THRESH_BINARY);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.threshold += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+        // morph
+        start_step = std::chrono::high_resolution_clock::now();
+        kernel = cv::getStructuringElement(cv::MORPH_OPEN, cv::Size(15, 15));
+        cv::morphologyEx(image, image, cv::MORPH_OPEN, kernel);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.morph += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+        // connectedComps
+        start_step = std::chrono::high_resolution_clock::now();
+        cv::connectedComponents(image, labels);
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.connectedComps += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+        // bboxes
+        start_step = std::chrono::high_resolution_clock::now();
+        labels.convertTo(dst, CV_8UC1);
+        cv::findContours(dst, contours, cv::RETR_EXTERNAL,
+                         cv::CHAIN_APPROX_SIMPLE);
+
+        bboxes = std::vector<cv::Rect>(contours.size());
+        for (size_t i = 0; i < contours.size(); i++)
+        {
+            bboxes[i] = cv::boundingRect(contours[i]);
+        }
+        end_step = std::chrono::high_resolution_clock::now();
+        timers.bboxes += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end_step
+                                                                  - start_step)
+                .count());
+        end = std::chrono::high_resolution_clock::now();
+        std::cout << '\r' << "FPS: " << std::setprecision(4)
+                  << 1
+                / (static_cast<double>(
+                       std::chrono::duration_cast<std::chrono::microseconds>(
+                           end - start)
+                           .count())
+                   / 1000000.0f)
+                  << std::flush;
+    }
+    std::cout << std::endl;
+    return timers;
+}
 
 int main(int argc, char **argv)
 {
@@ -28,6 +167,8 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    double nb_frames = capture.get(cv::CAP_PROP_FRAME_COUNT);
+
     float test_duration = 0.0; // 15000.01;
     float test_duration2 = 0.0; // 0.01;
     float test_percent = 0.0;
@@ -38,8 +179,7 @@ int main(int argc, char **argv)
               << capture.get(cv::CAP_PROP_FRAME_HEIGHT) << std::endl;
     std::cout << "Framerate: " << capture.get(cv::CAP_PROP_FPS) << "fps"
               << std::endl;
-    std::cout << "Total nb of frames: " << capture.get(cv::CAP_PROP_FRAME_COUNT)
-              << std::endl;
+    std::cout << "Total nb of frames: " << nb_frames << std::endl;
     std::cout << "Duration: "
               << 1000 * capture.get(cv::CAP_PROP_FRAME_COUNT)
             / capture.get(cv::CAP_PROP_FPS)
@@ -47,9 +187,15 @@ int main(int argc, char **argv)
 
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "OPENCV Bench (v" << OCV_VERSION << "):" << std::endl;
-    std::cout << '\r' << "FPS:"
-              << "[current_fps]" << std::flush;
     // Run opencv bench
+
+    auto start = std::chrono::high_resolution_clock::now();
+    BM_times ocv_timers = benchOpenCV(capture);
+    auto end = std::chrono::high_resolution_clock::now();
+    double duration = static_cast<double>(
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+            .count());
+
     std::cout << std::endl;
     std::cout << "STEP" << std::setfill(' ')
               << std::setw(24 - std::string("STEP").size()) << "|"
@@ -58,42 +204,56 @@ int main(int argc, char **argv)
     std::cout << std::endl;
     std::cout << "grayscale" << std::setfill(' ')
               << std::setw(24 - std::string("grayscale").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.grayscale / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.grayscale << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.grayscale / duration * 100
+              << "%" << std::endl;
     std::cout << "blur" << std::setfill(' ')
               << std::setw(24 - std::string("blur").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.blur / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.blur << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.blur / duration * 100 << "%"
+              << std::endl;
     std::cout << "diff" << std::setfill(' ')
               << std::setw(24 - std::string("diff").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.diff / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.diff << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.diff / duration * 100 << "%"
+              << std::endl;
     std::cout << "threshold" << std::setfill(' ')
               << std::setw(24 - std::string("threshold").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.threshold / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.threshold << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.threshold / duration * 100
+              << "%" << std::endl;
     std::cout << "morph" << std::setfill(' ')
               << std::setw(24 - std::string("morph").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.morph / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.morph << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.morph / duration * 100
+              << "%" << std::endl;
     std::cout << "connectedComps" << std::setfill(' ')
               << std::setw(24 - std::string("connectedComps").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.connectedComps / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.connectedComps << "μs" << std::setw(16)
+              << std::setprecision(3)
+              << ocv_timers.connectedComps / duration * 100 << "%" << std::endl;
     std::cout << "bboxes" << std::setfill(' ')
               << std::setw(24 - std::string("bboxes").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << ocv_timers.bboxes / nb_frames << "μs" << std::setw(15)
+              << ocv_timers.bboxes << "μs" << std::setw(16)
+              << std::setprecision(3) << ocv_timers.bboxes / duration * 100
+              << "%" << std::endl;
 
     std::cout << std::endl
-              << "Start to finish: \033[1m" << test_duration << "ms\033[0m"
+              << "Start to finish: \033[1m" << duration / 1000.0f << "ms\033[0m"
               << std::endl;
 
     std::cout << std::setfill('-') << std::setw(75) << "\n";
@@ -255,6 +415,11 @@ int main(int argc, char **argv)
               << "ms" << std::setw(15) << test_duration2 << "ms"
               << std::setw(16) << std::setprecision(3) << test_percent << "%"
               << std::endl;
+    std::cout << "Mem. Management" << std::setfill(' ')
+              << std::setw(24 - std::string("Mem. Management").size()) << "|"
+              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
+              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
+              << std::setprecision(3) << test_percent << "%" << std::endl;
 
     std::cout << std::endl
               << "Start to finish: \033[1m" << test_duration << "ms\033[0m"
