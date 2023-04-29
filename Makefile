@@ -77,13 +77,13 @@ run: $(CUDA_BIN)
 %.o: %.cu
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
-benchsuite: src/benchmark.o
+benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS)
 	$(CC) -o $@ $^ $(LD_LIBS)
 
 bench: benchsuite
 	./benchsuite $(INPUT_FILE)
 
 clean:
-	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o benchsuite
+	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o gputestsuite benchsuite
 
-.PHONY: all clean run bench
+.PHONY: all clean run bench check gpucheck
