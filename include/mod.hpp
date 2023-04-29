@@ -20,7 +20,7 @@ void diff(const SImage &src1, const SImage &src2, SImage &dst);
 void morphOpen(const SImage &src, SImage &dst, size_t ksize);
 void morphClose(const SImage &src, SImage &dst, size_t ksize);
 
-void treshold(const SImage &src, SImage &dst, unsigned char threshold,
+void threshold(const SImage &src, SImage &dst, unsigned char threshold,
               unsigned char maxval);
 
 void connectedComponents(const SImage &src, int *dst);

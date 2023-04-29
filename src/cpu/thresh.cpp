@@ -1,6 +1,6 @@
 #include "mod.hpp"
 
-void treshold(const SImage &src, SImage &dst, uchar threshold, uchar maxval)
+void threshold(const SImage &src, SImage &dst, uchar threshold, uchar maxval)
 {
     for (int y = 0; y < src.height; y++)
     {

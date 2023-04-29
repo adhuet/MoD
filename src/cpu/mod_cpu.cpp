@@ -22,7 +22,7 @@ std::vector<cv::Rect> detectObjectInFrameCPU(const cv::Mat &background,
     diff(bgd, image, image);
 
     // Compute the threshold before to ease our life with thresholding
-    treshold(image, image, 20, 255);
+    threshold(image, image, 20, 255);
 
     // (5) Morphological opening
     morphOpen(image, image, 15);
