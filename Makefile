@@ -78,10 +78,10 @@ run: $(CUDA_BIN)
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
 benchsuite: src/benchmark.o
-	$(CC) -o benchsuite $^
+	$(CC) -o $@ $^ $(LD_LIBS)
 
 bench: benchsuite
-	./benchsuite
+	./benchsuite $(INPUT_FILE)
 
 clean:
 	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o benchsuite

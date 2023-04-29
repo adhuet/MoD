@@ -1,7 +1,7 @@
 // #include <cuda_runtime.h>
 #include <iomanip>
 #include <iostream>
-// #include <opencv2/opencv.hpp>
+#include <opencv2/opencv.hpp>
 
 // #include "mod.hpp"
 // #include "mod_GPU.hpp"
@@ -12,42 +12,37 @@
 
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
-    // if (argc != 2)
-    // {
-    //     std::cerr << argv[0] << " Usage: " << argv[0] << " [VIDEO_FILENAME]"
-    //               << std::endl;
-    //     return EXIT_FAILURE;
-    // }
+    if (argc != 2)
+    {
+        std::cerr << argv[0] << " Usage: " << argv[0] << " [VIDEO_FILENAME]"
+                  << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    // std::string filename(argv[1]);
-    // cv::VideoCapture capture(filename);
+    std::string filename(argv[1]);
+    cv::VideoCapture capture(filename);
 
-    // if (!capture.isOpened())
-    // {
-    //     std::cerr << "Opening video failed!" << std::endl;
-    //     return EXIT_FAILURE;
-    // }
+    if (!capture.isOpened())
+    {
+        std::cerr << "Opening video failed!" << std::endl;
+        return EXIT_FAILURE;
+    }
 
     float test_duration = 0.0; // 15000.01;
     float test_duration2 = 0.0; // 0.01;
     float test_percent = 0.0;
 
     std::cout << std::setfill('#') << std::setw(75) << "\n";
-    std::cout << "Filename: "
-              << "[filename]" << std::endl;
-    std::cout << "Dimensions: "
-              << "[width]"
-              << "x"
-              << "[height]" << std::endl;
-    std::cout << "Framerate: "
-              << "[fps]"
-              << "fps" << std::endl;
-    std::cout << "Total nb of frames: "
-              << "[nb_frames]" << std::endl;
+    std::cout << "Filename: " << argv[1] << std::endl;
+    std::cout << "Dimensions: " << capture.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
+              << capture.get(cv::CAP_PROP_FRAME_HEIGHT) << std::endl;
+    std::cout << "Framerate: " << capture.get(cv::CAP_PROP_FPS) << "fps"
+              << std::endl;
+    std::cout << "Total nb of frames: " << capture.get(cv::CAP_PROP_FRAME_COUNT)
+              << std::endl;
     std::cout << "Duration: "
-              << "[duration]"
+              << 1000 * capture.get(cv::CAP_PROP_FRAME_COUNT)
+            / capture.get(cv::CAP_PROP_FPS)
               << "ms" << std::endl;
 
     std::cout << std::setfill('-') << std::setw(75) << "\n";
@@ -330,5 +325,6 @@ int main(int argc, char **argv)
 
     */
 
+    capture.release();
     return EXIT_SUCCESS;
 }
