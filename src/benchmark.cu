@@ -1,14 +1,14 @@
 // #include <cuda_runtime.h>
 #include <chrono>
+#include <cuda_runtime.h>
 #include <exception>
 #include <iomanip>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
 #include "mod.hpp"
+#include "mod_GPU.hpp"
 #include "utils.hpp"
-
-// #include "mod_GPU.hpp"
 
 #define CPU_VERSION 1.0
 #define GPU_VERSION 1.0
@@ -30,7 +30,7 @@ struct BM_times
     double bboxes;
     double other;
     double get_gaussian_matrix;
-    double get_gaussian_circle;
+    double get_circle_kernel;
     double gpu_mem_management;
 };
 
@@ -40,6 +40,262 @@ void erodeBinary255(const SImage &src, SImage &dst, uchar *kernel,
                     size_t ksize);
 void dilateBinary255(const SImage &src, SImage &dst, uchar *kernel,
                      size_t ksize);
+
+BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
+{
+    BM_times timers = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+    cv::Mat frame;
+    cv::Mat background;
+    capture >> background;
+    if (background.empty())
+        throw std::runtime_error("First frame of video (background is empty!)");
+
+    cudaEvent_t start;
+    cudaEventCreate(&start);
+    cudaEvent_t start_step;
+    cudaEventCreate(&start_step);
+    cudaEvent_t end_step;
+    cudaEventCreate(&end_step);
+    cudaEvent_t end;
+    cudaEventCreate(&end);
+    cudaEvent_t start_substep;
+    cudaEventCreate(&start_substep);
+    cudaEvent_t end_substep;
+    cudaEventCreate(&end_substep);
+
+    float duration = 0.0f;
+    float sub_duration = 0.0f;
+
+    for (;;)
+    {
+        cudaEventRecord(start, 0);
+        capture >> frame;
+        if (frame.empty())
+            break;
+
+        const int height = frame.rows;
+        const int width = frame.cols;
+        const int numPixels = height * width;
+        const size_t ksize = 15;
+
+        cudaEventRecord(start_step, 0);
+        const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.get_gaussian_matrix += duration;
+
+        const uchar threshold = 20;
+        const uchar maxval_tresh = 255;
+        const int morphologicalCircleDiameter = 15;
+
+        cudaEventRecord(start_step, 0);
+        const uchar *circleKernel =
+            getCircleKernel(morphologicalCircleDiameter);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.get_circle_kernel += duration;
+
+        uchar3 *d_background;
+        uchar3 *d_frame;
+
+        uchar *d_bgd;
+        uchar *d_input;
+        uchar *d_tmp;
+
+        float *d_gaussianKernel;
+        uchar *d_circleKernel;
+
+        cudaEventRecord(start_step, 0);
+        cudaMalloc(&d_background, numPixels * sizeof(uchar3));
+        cudaMalloc(&d_frame, numPixels * sizeof(uchar3));
+        cudaMalloc(&d_input, numPixels * sizeof(uchar));
+        cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
+        cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float));
+        cudaMalloc(&d_circleKernel,
+                   morphologicalCircleDiameter * morphologicalCircleDiameter
+                       * sizeof(uchar));
+        cudaMalloc(&d_tmp, height * width * sizeof(uchar));
+        cudaMemset(d_tmp, 0, height * width * sizeof(uchar));
+
+        cudaMemcpy(d_background, background.ptr<uchar3>(0),
+                   numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_frame, frame.ptr<uchar3>(0), numPixels * sizeof(uchar3),
+                   cudaMemcpyHostToDevice);
+        cudaMemcpy(d_gaussianKernel, gaussianKernel,
+                   ksize * ksize * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_circleKernel, circleKernel,
+                   morphologicalCircleDiameter * morphologicalCircleDiameter
+                       * sizeof(uchar),
+                   cudaMemcpyHostToDevice);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.gpu_mem_management += duration;
+
+        // grayscale
+        cudaEventRecord(start_step, 0);
+        grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
+        grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.grayscale += duration;
+
+        // blur
+        cudaEventRecord(start_step, 0);
+        blurGPU<<<gridDim, blockDim>>>(d_bgd, d_bgd, height, width,
+                                       d_gaussianKernel, ksize);
+        blurGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
+                                       d_gaussianKernel, ksize);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.blur += duration;
+
+        // diff
+        cudaEventRecord(start_step, 0);
+        diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.diff += duration;
+
+        // threshold
+        cudaEventRecord(start_step, 0);
+        thresholdGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
+                                            threshold, maxval_tresh);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.threshold += duration;
+
+        // morph
+        cudaEventRecord(start_step, 0);
+
+        cudaEventRecord(start_substep, 0);
+        dilateGPU<<<gridDim, blockDim>>>(d_input, d_tmp, height, width,
+                                         d_circleKernel, ksize);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.kernel_dilateGPU += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        erodeGPU<<<gridDim, blockDim>>>(d_tmp, d_input, height, width,
+                                        d_circleKernel, ksize);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.kernel_erodeGPU += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        cudaMemcpy(d_input, d_tmp, height * width * sizeof(uchar),
+                   cudaMemcpyDeviceToDevice);
+        cudaEventRecord(end_substep, 0);
+
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.gpu_mem_management += sub_duration;
+
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.morph += duration;
+
+        // connectedComps
+        cudaEventRecord(start_step, 0);
+
+        int *d_labelled;
+        cudaEventRecord(start_substep, 0);
+        cudaMalloc(&d_labelled, height * width * sizeof(int));
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.gpu_mem_management += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        initCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.kernel_initCCL += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        mergeCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.kernel_mergeCCL += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        compressCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.kernel_compressCCL += sub_duration;
+
+        cudaEventRecord(start_substep, 0);
+        int *labelled = new int[height * width];
+        cudaMemcpy(labelled, d_labelled, height * width * sizeof(int),
+                   cudaMemcpyDeviceToHost);
+        cudaEventRecord(end_substep, 0);
+        cudaEventSynchronize(end_substep);
+        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
+        timers.gpu_mem_management += sub_duration;
+
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.connectedComps += duration;
+
+        // bboxes
+        cudaEventRecord(start_step, 0);
+        std::vector<cv::Rect> bboxes =
+            getBoundingBoxes(labelled, width, height);
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.bboxes += duration;
+
+        cudaEventRecord(start_step, 0);
+        cudaFree(d_labelled);
+        cudaFree(d_background);
+        cudaFree(d_frame);
+        cudaFree(d_input);
+        cudaFree(d_bgd);
+        cudaFree(d_gaussianKernel);
+        cudaFree(d_circleKernel);
+        cudaFree(d_tmp);
+
+        delete[] gaussianKernel;
+        delete[] circleKernel;
+        delete[] labelled;
+        cudaEventRecord(end_step, 0);
+        cudaEventSynchronize(end_step);
+        cudaEventElapsedTime(&duration, start_step, end_step);
+        timers.gpu_mem_management += duration;
+
+        cudaEventRecord(end, 0);
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(&duration, start, end);
+        std::cout << '\r' << "FPS: " << std::setprecision(4)
+                  << 1 / (duration / 1000.0f) << std::flush;
+    }
+    std::cout << std::endl;
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(start_step);
+    cudaEventDestroy(end_step);
+    cudaEventDestroy(end);
+    cudaEventDestroy(start_substep);
+    cudaEventDestroy(end_substep);
+
+    return timers;
+}
 
 BM_times benchCPU(cv::VideoCapture capture)
 {
@@ -146,7 +402,7 @@ BM_times benchCPU(cv::VideoCapture capture)
         dilateBinary255(image, tmp, kernel, 15);
         erodeBinary255(tmp, image, kernel, 15);
         end_step = std::chrono::high_resolution_clock::now();
-        timers.get_gaussian_circle += static_cast<double>(
+        timers.get_circle_kernel += static_cast<double>(
             std::chrono::duration_cast<std::chrono::microseconds>(
                 end_substep - start_substep)
                 .count());
@@ -321,15 +577,16 @@ int main(int argc, char **argv)
     }
 
     double nb_frames = capture.get(cv::CAP_PROP_FRAME_COUNT);
+    int width = capture.get(cv::CAP_PROP_FRAME_WIDTH);
+    int height = capture.get(cv::CAP_PROP_FRAME_HEIGHT);
 
-    float test_duration = 0.0; // 15000.01;
-    float test_duration2 = 0.0; // 0.01;
-    float test_percent = 0.0;
+    // float test_duration = 0.0; // 15000.01;
+    // float test_duration2 = 0.0; // 0.01;
+    // float test_percent = 0.0;
 
     std::cout << std::setfill('#') << std::setw(75) << "\n";
     std::cout << "Filename: " << argv[1] << std::endl;
-    std::cout << "Dimensions: " << capture.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
-              << capture.get(cv::CAP_PROP_FRAME_HEIGHT) << std::endl;
+    std::cout << "Dimensions: " << width << "x" << height << std::endl;
     std::cout << "Framerate: " << capture.get(cv::CAP_PROP_FPS) << "fps"
               << std::endl;
     std::cout << "Total nb of frames: " << nb_frames << std::endl;
@@ -466,10 +723,10 @@ int main(int argc, char **argv)
     std::cout << "  - getCircleKernel" << std::setfill(' ')
               << std::setw(24 - std::string("  - getCircleKernel").size())
               << "|" << std::setw(13) << std::setprecision(7)
-              << timers.get_gaussian_circle / nb_frames << "μs" << std::setw(15)
-              << timers.get_gaussian_circle << "μs" << std::setw(16)
+              << timers.get_circle_kernel / nb_frames << "μs" << std::setw(15)
+              << timers.get_circle_kernel << "μs" << std::setw(16)
               << std::setprecision(3)
-              << timers.get_gaussian_circle / (duration * 1000.0f) * 100 << "%"
+              << timers.get_circle_kernel / (duration * 1000.0f) * 100 << "%"
               << std::endl;
     std::cout << "connectedComps" << std::setfill(' ')
               << std::setw(24 - std::string("connectedComps").size()) << "|"
@@ -484,30 +741,41 @@ int main(int argc, char **argv)
               << timers.bboxes / nb_frames << "ms" << std::setw(15)
               << timers.bboxes << "ms" << std::setw(16) << std::setprecision(3)
               << timers.bboxes / duration * 100 << "%" << std::endl;
-    std::cout << "Other" << std::setfill(' ')
-              << std::setw(24 - std::string("Other").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+    // std::cout << "Other" << std::setfill(' ')
+    //           << std::setw(24 - std::string("Other").size()) << "|"
+    //           << std::setw(13) << std::setprecision(7) << test_duration <<
+    //           "ms"
+    //           << std::setw(15) << test_duration2 << "ms" << std::setw(16)
+    //           << std::setprecision(3) << test_percent << "%" << std::endl;
 
     std::cout << std::endl
               << "Start to finish: \033[1m" << duration / 1000.0f << "s\033[0m"
               << std::endl;
 
+    capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "GPU Bench (v" << GPU_VERSION << "):" << std::endl;
-    /*
-    std::cout << "blockDim: "
-              << "[block_width]"
-              << "x"
-              << "[block_height]" << std::endl;
-    std::cout << "gridDim: "
-              << "[grid_width]"
-              << "x"
-              << "[grid_height]" << std::endl;
-    std::cout << '\r' << "FPS:"
-              << "[current_fps]" << std::flush;
+
+    dim3 blockDim(32, 32);
+    dim3 gridDim(int(ceil((float)width / blockDim.x)),
+                 int(ceil((float)height / blockDim.y)));
+
+    std::cout << "blockDim: " << blockDim.x << "x" << blockDim.y << std::endl;
+    std::cout << "gridDim: " << gridDim.x << "x" << gridDim.y << std::endl;
+
     // Run gpu bench
+    cudaEvent_t start_bench;
+    cudaEvent_t stop_bench;
+    cudaEventCreate(&start_bench);
+    cudaEventCreate(&stop_bench);
+    float gpu_duration = 0.0f;
+
+    cudaEventRecord(start_bench, 0);
+    timers = benchGPU(capture, blockDim, gridDim);
+    cudaEventRecord(stop_bench, 0);
+    cudaEventSynchronize(stop_bench);
+    cudaEventElapsedTime(&gpu_duration, start_bench, stop_bench);
+
     std::cout << std::endl;
     std::cout << "STEP" << std::setfill(' ')
               << std::setw(24 - std::string("STEP").size()) << "|"
@@ -516,86 +784,122 @@ int main(int argc, char **argv)
     std::cout << std::endl;
     std::cout << "grayscaleGPU" << std::setfill(' ')
               << std::setw(24 - std::string("grayscaleGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << timers.grayscale / nb_frames << "ms" << std::setw(15)
+              << timers.grayscale << "ms" << std::setw(16)
+              << std::setprecision(3) << timers.grayscale / gpu_duration * 100
+              << "%" << std::endl;
     std::cout << "blurGPU" << std::setfill(' ')
               << std::setw(24 - std::string("blurGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "diffGPU" << std::setfill(' ')
-              << std::setw(24 - std::string("diffGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "thresholdGPU" << std::setfill(' ')
-              << std::setw(24 - std::string("thresholdGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "dilateGPU" << std::setfill(' ')
-              << std::setw(24 - std::string("dilateGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "erodeGPU" << std::setfill(' ')
-              << std::setw(24 - std::string("erodeGPU").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "connectedComps" << std::setfill(' ')
-              << std::setw(24 - std::string("connectedComps").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "  - initCCL" << std::setfill(' ')
-              << std::setw(24 - std::string("  - initCCL").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "  - mergeCCL" << std::setfill(' ')
-              << std::setw(24 - std::string("  - mergeCCL").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "  - compressCCL" << std::setfill(' ')
-              << std::setw(24 - std::string("  - compressCCL").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "bboxes" << std::setfill(' ')
-              << std::setw(24 - std::string("bboxes").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
-    std::cout << "Other" << std::setfill(' ')
-              << std::setw(24 - std::string("Other").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << timers.blur / nb_frames << "ms" << std::setw(15) << timers.blur
+              << "ms" << std::setw(16) << std::setprecision(3)
+              << timers.blur / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - getGaussianMatrix" << std::setfill(' ')
               << std::setw(24 - std::string("  - getGaussianMatrix").size())
-              << "|" << std::setw(13) << std::setprecision(7) << test_duration
-              << "ms" << std::setw(15) << test_duration2 << "ms"
-              << std::setw(16) << std::setprecision(3) << test_percent << "%"
+              << "|" << std::setw(13) << std::setprecision(7)
+              << timers.get_gaussian_matrix / nb_frames << "ms" << std::setw(15)
+              << timers.get_gaussian_matrix << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.get_gaussian_matrix / gpu_duration * 100 << "%"
+              << std::endl;
+    std::cout << "diffGPU" << std::setfill(' ')
+              << std::setw(24 - std::string("diffGPU").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.diff / nb_frames << "ms" << std::setw(15) << timers.diff
+              << "ms" << std::setw(16) << std::setprecision(3)
+              << timers.diff / gpu_duration * 100 << "%" << std::endl;
+    std::cout << "thresholdGPU" << std::setfill(' ')
+              << std::setw(24 - std::string("thresholdGPU").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.threshold / nb_frames << "ms" << std::setw(15)
+              << timers.threshold << "ms" << std::setw(16)
+              << std::setprecision(3) << timers.threshold / gpu_duration * 100
+              << "%" << std::endl;
+    std::cout << "morph" << std::setfill(' ')
+              << std::setw(24 - std::string("morph").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.morph / nb_frames << "ms" << std::setw(15)
+              << timers.morph << "ms" << std::setw(16) << std::setprecision(3)
+              << timers.morph / duration * 100 << "%" << std::endl;
+    std::cout << "  - dilateGPU" << std::setfill(' ')
+              << std::setw(24 - std::string("  - dilateGPU").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.kernel_dilateGPU / nb_frames << "ms" << std::setw(15)
+              << timers.kernel_dilateGPU << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.kernel_dilateGPU / gpu_duration * 100 << "%"
+              << std::endl;
+    std::cout << "  - erodeGPU" << std::setfill(' ')
+              << std::setw(24 - std::string("  - erodeGPU").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.kernel_erodeGPU / nb_frames << "ms" << std::setw(15)
+              << timers.kernel_erodeGPU << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.kernel_erodeGPU / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "  - getCircleKernel" << std::setfill(' ')
               << std::setw(24 - std::string("  - getCircleKernel").size())
-              << "|" << std::setw(13) << std::setprecision(7) << test_duration
-              << "ms" << std::setw(15) << test_duration2 << "ms"
-              << std::setw(16) << std::setprecision(3) << test_percent << "%"
+              << "|" << std::setw(13) << std::setprecision(7)
+              << timers.get_circle_kernel / nb_frames << "ms" << std::setw(15)
+              << timers.get_circle_kernel << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.get_circle_kernel / gpu_duration * 100 << "%"
               << std::endl;
+    std::cout << "connectedComps" << std::setfill(' ')
+              << std::setw(24 - std::string("connectedComps").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.connectedComps / nb_frames << "ms" << std::setw(15)
+              << timers.connectedComps << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.connectedComps / gpu_duration * 100 << "%" << std::endl;
+    std::cout << "  - initCCL" << std::setfill(' ')
+              << std::setw(24 - std::string("  - initCCL").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.kernel_initCCL / nb_frames << "ms" << std::setw(15)
+              << timers.kernel_initCCL << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.kernel_initCCL / gpu_duration * 100 << "%" << std::endl;
+    std::cout << "  - mergeCCL" << std::setfill(' ')
+              << std::setw(24 - std::string("  - mergeCCL").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.kernel_mergeCCL / nb_frames << "ms" << std::setw(15)
+              << timers.kernel_mergeCCL << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.kernel_mergeCCL / gpu_duration * 100 << "%"
+              << std::endl;
+    std::cout << "  - compressCCL" << std::setfill(' ')
+              << std::setw(24 - std::string("  - compressCCL").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.kernel_compressCCL / nb_frames << "ms" << std::setw(15)
+              << timers.kernel_compressCCL << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.kernel_compressCCL / gpu_duration * 100 << "%"
+              << std::endl;
+    std::cout << "bboxes" << std::setfill(' ')
+              << std::setw(24 - std::string("bboxes").size()) << "|"
+              << std::setw(13) << std::setprecision(7)
+              << timers.bboxes / nb_frames << "ms" << std::setw(15)
+              << timers.bboxes << "ms" << std::setw(16) << std::setprecision(3)
+              << timers.bboxes / gpu_duration * 100 << "%" << std::endl;
+    // std::cout << "Other" << std::setfill(' ')
+    //           << std::setw(24 - std::string("Other").size()) << "|"
+    //           << std::setw(13) << std::setprecision(7) << test_duration <<
+    //           "ms"
+    //           << std::setw(15) << test_duration2 << "ms" << std::setw(16)
+    //           << std::setprecision(3) << test_percent << "%" << std::endl;
     std::cout << "Mem. Management" << std::setfill(' ')
               << std::setw(24 - std::string("Mem. Management").size()) << "|"
-              << std::setw(13) << std::setprecision(7) << test_duration << "ms"
-              << std::setw(15) << test_duration2 << "ms" << std::setw(16)
-              << std::setprecision(3) << test_percent << "%" << std::endl;
+              << std::setw(13) << std::setprecision(7)
+              << timers.gpu_mem_management / nb_frames << "ms" << std::setw(15)
+              << timers.gpu_mem_management << "ms" << std::setw(16)
+              << std::setprecision(3)
+              << timers.gpu_mem_management / gpu_duration * 100 << "%"
+              << std::endl;
 
     std::cout << std::endl
-              << "Start to finish: \033[1m" << test_duration / 1000.0f
+              << "Start to finish: \033[1m" << gpu_duration / 1000.0f
               << "s\033[0m" << std::endl;
-    */
     /*
     ##################################################
     Filename: truc.mp4

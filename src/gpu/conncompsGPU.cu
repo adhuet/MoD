@@ -30,7 +30,7 @@
 //     return neighbours;
 // }
 
-__device__ int find(int *L, int index)
+__device__ int findGPU(int *L, int index)
 {
     int label = L[index];
     while (label - 1 != index)
@@ -64,14 +64,14 @@ __device__ void swap(int *a, int *b)
     *b = tmp;
 }
 
-__device__ void merge(int *L, int a, int b)
+__device__ void mergeGPU(int *L, int a, int b)
 {
     bool done = false;
     int old;
     while (!done)
     {
-        a = find(L, a);
-        b = find(L, b);
+        a = findGPU(L, a);
+        b = findGPU(L, b);
         done = (a == b);
         if (a == b)
             done = true;
@@ -115,21 +115,21 @@ __global__ void mergeCCL(const uchar *src, int *dst, int height, int width)
             // top left neighbour
             if (x > 0 && src[(y - 1) * width + (x - 1)] != 0
                 && (y - 1) * width + (x - 1) < idx)
-                merge(dst, idx, (y - 1) * width + (x - 1));
+                mergeGPU(dst, idx, (y - 1) * width + (x - 1));
 
             // top neighbour
             if (src[(y - 1) * width + x] != 0 && (y - 1) * width + x < idx)
-                merge(dst, idx, (y - 1) * width + x);
+                mergeGPU(dst, idx, (y - 1) * width + x);
 
             // top right neighbour
             if (x < width - 1 && src[(y - 1) * width + (x + 1)] != 0
                 && (y - 1) * width + (x + 1) < idx)
-                merge(dst, idx, (y - 1) * width + (x + 1));
+                mergeGPU(dst, idx, (y - 1) * width + (x + 1));
         }
 
         // Not on left edge, left neighbour
         if (x > 0 && src[y * width + (x - 1)] != 0 && y * width + (x - 1) < idx)
-            merge(dst, idx, y * width + (x - 1));
+            mergeGPU(dst, idx, y * width + (x - 1));
     }
 }
 
@@ -140,7 +140,7 @@ __global__ void compressCCL(const uchar *src, int *dst, int height, int width)
     int idx = y * width + x;
 
     if (src[idx] != 0)
-        dst[idx] = find(dst, idx) + 1;
+        dst[idx] = findGPU(dst, idx) + 1;
 }
 
 __host__ void connectedComponentsGPU(const uchar *src, int *dst, int height,

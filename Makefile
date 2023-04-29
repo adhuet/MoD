@@ -77,8 +77,8 @@ run: $(CUDA_BIN)
 %.o: %.cu
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
-benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS)
-	$(CC) -o $@ $^ $(LD_LIBS)
+benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS) $(CUDA_OBJS)
+	$(NVCC) -o $@ $^ $(LD_LIBS)
 
 bench: benchsuite
 	./benchsuite $(INPUT_FILE)
