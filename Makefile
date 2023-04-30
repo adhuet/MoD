@@ -88,6 +88,11 @@ benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS) $(CUDA_OBJS)
 bench: benchsuite
 	./benchsuite $(INPUT_FILE)
 
+report: benchsuite
+	@echo "Generating report..."
+	@touch 'reports/report_OVCv$(OCV_VERSION)_CPUv$(CPU_VERSION)_GPUv$(GPU_VERSION).txt'
+	@./benchsuite $(INPUT_FILE) > reports/report_OVCv$(OCV_VERSION)_CPUv$(CPU_VERSION)_GPUv$(GPU_VERSION).txt
+	@echo Done
 clean:
 	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o gputestsuite benchsuite
 

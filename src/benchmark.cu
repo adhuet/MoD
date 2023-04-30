@@ -73,6 +73,7 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     cudaEvent_t end_substep;
     cudaEventCreate(&end_substep);
 
+    float total_duration = 0.0f;
     float duration = 0.0f;
     float sub_duration = 0.0f;
 
@@ -290,10 +291,12 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         cudaEventRecord(end, 0);
         cudaEventSynchronize(end);
         cudaEventElapsedTime(&duration, start, end);
-        std::cout << '\r' << "FPS: " << std::setprecision(4)
-                  << 1 / (duration / 1000.0f) << std::flush;
+        total_duration += duration;
     }
-    std::cout << std::endl;
+    std::cout << "FPS: " << std::setprecision(4)
+              << capture.get(cv::CAP_PROP_FRAME_COUNT)
+            / (total_duration / 1000.0f)
+              << std::endl;
 
     cudaEventDestroy(start);
     cudaEventDestroy(start_step);
@@ -325,6 +328,8 @@ BM_times benchCPU(cv::VideoCapture capture)
     auto end = start;
     auto start_substep = start;
     auto end_substep = start;
+
+    float total_duration = 0.0f;
 
     for (;;)
     {
@@ -438,16 +443,14 @@ BM_times benchCPU(cv::VideoCapture capture)
                                                                   - start_step)
                 .count());
         end = std::chrono::high_resolution_clock::now();
-        std::cout << '\r' << "FPS: " << std::setprecision(4)
-                  << 1
-                / (static_cast<double>(
-                       std::chrono::duration_cast<std::chrono::milliseconds>(
-                           end - start)
-                           .count())
-                   / 1000.0f)
-                  << std::flush;
+        total_duration += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+                .count());
     }
-    std::cout << std::endl;
+    std::cout << "FPS: " << std::setprecision(4)
+              << capture.get(cv::CAP_PROP_FRAME_COUNT)
+            / (total_duration / 1000.0f)
+              << std::endl;
     return timers;
 }
 
@@ -474,6 +477,8 @@ BM_times benchOpenCV(cv::VideoCapture capture)
     auto start_step = start;
     auto end_step = start;
     auto end = start;
+
+    float total_duration = 0.0f;
 
     for (;;)
     {
@@ -553,16 +558,14 @@ BM_times benchOpenCV(cv::VideoCapture capture)
                                                                   - start_step)
                 .count());
         end = std::chrono::high_resolution_clock::now();
-        std::cout << '\r' << "FPS: " << std::setprecision(4)
-                  << 1
-                / (static_cast<double>(
-                       std::chrono::duration_cast<std::chrono::microseconds>(
-                           end - start)
-                           .count())
-                   / 1000000.0f)
-                  << std::flush;
+        total_duration += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+                .count());
     }
-    std::cout << std::endl;
+    std::cout << "FPS: " << std::setprecision(4)
+              << capture.get(cv::CAP_PROP_FRAME_COUNT)
+            / (total_duration / 1000000.0f)
+              << std::endl;
     return timers;
 }
 
@@ -666,8 +669,7 @@ int main(int argc, char **argv)
               << timers.bboxes / duration * 100 << "%" << std::endl;
 
     std::cout << std::endl
-              << "Start to finish: \033[1m" << duration / 1000.0f << "ms\033[0m"
-              << std::endl;
+              << "Start to finish: " << duration / 1000.0f << "ms" << std::endl;
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
@@ -757,8 +759,7 @@ int main(int argc, char **argv)
     //           << std::setprecision(3) << test_percent << "%" << std::endl;
 
     std::cout << std::endl
-              << "Start to finish: \033[1m" << duration / 1000.0f << "s\033[0m"
-              << std::endl;
+              << "Start to finish: " << duration / 1000.0f << "s" << std::endl;
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
@@ -906,8 +907,8 @@ int main(int argc, char **argv)
               << std::endl;
 
     std::cout << std::endl
-              << "Start to finish: \033[1m" << gpu_duration / 1000.0f
-              << "s\033[0m" << std::endl;
+              << "Start to finish: " << gpu_duration / 1000.0f << "s"
+              << std::endl;
     /*
     ##################################################
     Filename: truc.mp4
