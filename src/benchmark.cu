@@ -824,101 +824,101 @@ int main(int argc, char **argv)
     std::cout << "grayscaleGPU" << std::setfill(' ')
               << std::setw(24 - std::string("grayscaleGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.grayscale / nb_frames << "ms" << std::setw(15)
-              << timers.grayscale << "ms" << std::setw(16)
+              << (timers.grayscale / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.grayscale << "ms" << std::setw(16)
               << std::setprecision(3) << timers.grayscale / gpu_duration * 100
               << "%" << std::endl;
     std::cout << "blurGPU" << std::setfill(' ')
               << std::setw(24 - std::string("blurGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.blur / nb_frames << "ms" << std::setw(15) << timers.blur
-              << "ms" << std::setw(16) << std::setprecision(3)
+              << (timers.blur / nb_frames) * 1000.0f << "µs" << std::setw(15)
+              << timers.blur << "ms" << std::setw(16) << std::setprecision(3)
               << timers.blur / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - getGaussianMatrix" << std::setfill(' ')
               << std::setw(24 - std::string("  - getGaussianMatrix").size())
               << "|" << std::setw(13) << std::setprecision(7)
-              << timers.get_gaussian_matrix / nb_frames << "ms" << std::setw(15)
-              << timers.get_gaussian_matrix << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.get_gaussian_matrix / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.get_gaussian_matrix << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.get_gaussian_matrix / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "diffGPU" << std::setfill(' ')
               << std::setw(24 - std::string("diffGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.diff / nb_frames << "ms" << std::setw(15) << timers.diff
-              << "ms" << std::setw(16) << std::setprecision(3)
+              << (timers.diff / nb_frames) * 1000.0f << "µs" << std::setw(15)
+              << timers.diff << "ms" << std::setw(16) << std::setprecision(3)
               << timers.diff / gpu_duration * 100 << "%" << std::endl;
     std::cout << "thresholdGPU" << std::setfill(' ')
               << std::setw(24 - std::string("thresholdGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.threshold / nb_frames << "ms" << std::setw(15)
-              << timers.threshold << "ms" << std::setw(16)
+              << (timers.threshold / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.threshold << "ms" << std::setw(16)
               << std::setprecision(3) << timers.threshold / gpu_duration * 100
               << "%" << std::endl;
     std::cout << "morph" << std::setfill(' ')
               << std::setw(24 - std::string("morph").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.morph / nb_frames << "ms" << std::setw(15)
+              << (timers.morph / nb_frames) * 1000.0f << "µs" << std::setw(15)
               << timers.morph << "ms" << std::setw(16) << std::setprecision(3)
               << timers.morph / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - dilateGPU" << std::setfill(' ')
               << std::setw(24 - std::string("  - dilateGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.kernel_dilateGPU / nb_frames << "ms" << std::setw(15)
-              << timers.kernel_dilateGPU << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.kernel_dilateGPU / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.kernel_dilateGPU << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.kernel_dilateGPU / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "  - erodeGPU" << std::setfill(' ')
               << std::setw(24 - std::string("  - erodeGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.kernel_erodeGPU / nb_frames << "ms" << std::setw(15)
-              << timers.kernel_erodeGPU << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.kernel_erodeGPU / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.kernel_erodeGPU << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.kernel_erodeGPU / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "  - getCircleKernel" << std::setfill(' ')
               << std::setw(24 - std::string("  - getCircleKernel").size())
               << "|" << std::setw(13) << std::setprecision(7)
-              << timers.get_circle_kernel / nb_frames << "ms" << std::setw(15)
-              << timers.get_circle_kernel << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.get_circle_kernel / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.get_circle_kernel << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.get_circle_kernel / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "connectedComps" << std::setfill(' ')
               << std::setw(24 - std::string("connectedComps").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.connectedComps / nb_frames << "ms" << std::setw(15)
-              << timers.connectedComps << "ms" << std::setw(16)
+              << (timers.connectedComps / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.connectedComps << "ms" << std::setw(16)
               << std::setprecision(3)
               << timers.connectedComps / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - initCCL" << std::setfill(' ')
               << std::setw(24 - std::string("  - initCCL").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.kernel_initCCL / nb_frames << "ms" << std::setw(15)
-              << timers.kernel_initCCL << "ms" << std::setw(16)
+              << (timers.kernel_initCCL / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.kernel_initCCL << "ms" << std::setw(16)
               << std::setprecision(3)
               << timers.kernel_initCCL / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - mergeCCL" << std::setfill(' ')
               << std::setw(24 - std::string("  - mergeCCL").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.kernel_mergeCCL / nb_frames << "ms" << std::setw(15)
-              << timers.kernel_mergeCCL << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.kernel_mergeCCL / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.kernel_mergeCCL << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.kernel_mergeCCL / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "  - compressCCL" << std::setfill(' ')
               << std::setw(24 - std::string("  - compressCCL").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.kernel_compressCCL / nb_frames << "ms" << std::setw(15)
-              << timers.kernel_compressCCL << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.kernel_compressCCL / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.kernel_compressCCL << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.kernel_compressCCL / gpu_duration * 100 << "%"
               << std::endl;
     std::cout << "bboxes" << std::setfill(' ')
               << std::setw(24 - std::string("bboxes").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.bboxes / nb_frames << "ms" << std::setw(15)
+              << (timers.bboxes / nb_frames) * 1000.0f << "µs" << std::setw(15)
               << timers.bboxes << "ms" << std::setw(16) << std::setprecision(3)
               << timers.bboxes / gpu_duration * 100 << "%" << std::endl;
     // std::cout << "Other" << std::setfill(' ')
@@ -930,9 +930,9 @@ int main(int argc, char **argv)
     std::cout << "Mem. Management" << std::setfill(' ')
               << std::setw(24 - std::string("Mem. Management").size()) << "|"
               << std::setw(13) << std::setprecision(7)
-              << timers.gpu_mem_management / nb_frames << "ms" << std::setw(15)
-              << timers.gpu_mem_management << "ms" << std::setw(16)
-              << std::setprecision(3)
+              << (timers.gpu_mem_management / nb_frames) * 1000.0f << "µs"
+              << std::setw(15) << timers.gpu_mem_management << "ms"
+              << std::setw(16) << std::setprecision(3)
               << timers.gpu_mem_management / gpu_duration * 100 << "%"
               << std::endl;
 
