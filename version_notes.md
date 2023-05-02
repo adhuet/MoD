@@ -11,3 +11,23 @@ Notes:
 
 Effect:
 Improvment of around +20fps, Memory mangement drops from 12% exec time to 6%, reduction of ~18% in total exec time.
+
+## GPU v1.2
+### Shared/Constant Memory Usage for simple kernels
+v1.1: some constant buffers can be moved to constant memory, and most of the "easy" kernels rely on global memory.
+- grayscaleGPU consists of 4 incompressible memory access (3 read + 1 write) for each thread, so shared memory does not bring much here, and impact on performance is just negligible (less than 0.5% exec time on v1.1)
+- blurGPU has the second highest exec cost (~20%). The gaussian blur matrix can be moved to constant memory and even be computed at compilation time on cpu, as the parameters will be left unchanged. Tiling might prove useful as every thread rely on locality to compute output.
+- diffGPU and thresholdGPU, we can apply similar reasoning as grayscale, so no optimization
+- morph has the highest exec time, but dilateGPU and erodeGPU are two kernels similar to blurGPU, so same reasoning can be applied (constant memory + tiling)
+- connectedComponents, most of the exec time comes from the Memcpy for the symbollic labelled image, the rest is negligible before performance
+
+Changes:
+- [ ] Use shared memory tiling to blurGPU (v1.1.1)
+- [ ] Use shared memory tiling to dilateGPU (v1.1.1)
+- [ ] Use shared memory tiling to erodeGPU (v1.1.1)
+- [ ] Feed blur matrix and morph kernel into shared memory (v1.1.2)
+- [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3)
+
+Notes:
+
+Effect:
