@@ -77,6 +77,110 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     float duration = 0.0f;
     float sub_duration = 0.0f;
 
+    // Initialize all important constants
+    const int height = background.rows;
+    const int width = background.cols;
+    const int numPixels = height * width;
+    const size_t ksize = 15;
+
+    cudaEventRecord(start_step, 0);
+    const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.get_gaussian_matrix += duration;
+
+    const uchar threshold = 20;
+    const uchar maxval_tresh = 255;
+    const int morphological_circle_diameter = 15;
+
+    cudaEventRecord(start_step, 0);
+    const uchar *circleKernel = getCircleKernel(morphological_circle_diameter);
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.get_circle_kernel += duration;
+
+    // Host buffers used during computation
+    cudaEventRecord(start_step, 0);
+    int *labels = new int[numPixels]; // Holds the final CCL symbollic image
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.gpu_mem_management += duration;
+
+    std::vector<cv::Rect> bboxes; // Holds the bboxes for a specific frame
+
+    // Device buffers used during computation
+    uchar3 *d_background; // This holds the original background temporarily
+    uchar3 *d_frame; // This holds the original frame temporarily
+
+    uchar *d_bgd; // This holds the gray blurred background throughout the whole
+                  // capture processing
+    uchar *d_input; // This hold the frame throughout all of the processing
+    uchar *d_swap; // This allows copy and manipulation of the frame
+
+    float *d_gaussianKernel; // Device buffer for the blur kernel
+    uchar *d_circleKernel; // Device buffer for the morphological kernel
+
+    int *d_labels; // This holds the symbollic image after CCL
+
+    cudaEventRecord(start_step, 0);
+    // Allocations necessary for background
+    cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
+    cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float));
+    cudaMalloc(&d_circleKernel,
+               morphological_circle_diameter * morphological_circle_diameter
+                   * sizeof(uchar));
+    cudaMalloc(&d_background, numPixels * sizeof(uchar3));
+    // Initialization
+    // FIXME, put those into constant memory
+    cudaMemcpy(d_gaussianKernel, gaussianKernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_circleKernel, circleKernel,
+               morphological_circle_diameter * morphological_circle_diameter
+                   * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    // Background processing
+    // Copy background to device
+    cudaMemcpy(d_background, background.ptr<uchar3>(0),
+               numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.gpu_mem_management += duration;
+
+    // Process background
+    cudaEventRecord(start_step, 0);
+    grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.grayscale += duration;
+
+    cudaEventRecord(start_step, 0);
+    blurGPU<<<gridDim, blockDim>>>(d_bgd, d_bgd, height, width,
+                                   d_gaussianKernel, ksize);
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.blur += duration;
+
+    // We do not this the original background buffer, so we release memory as
+    // soon as possible
+    cudaEventRecord(start_step, 0);
+    cudaFree(d_background);
+    // Rest of the allocations for the frame processing
+    cudaMalloc(&d_frame, numPixels * sizeof(uchar3));
+    cudaMalloc(&d_input, numPixels * sizeof(uchar));
+    cudaMalloc(&d_swap, numPixels * sizeof(uchar));
+    cudaMalloc(&d_labels, numPixels * sizeof(int));
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.gpu_mem_management += duration;
+
     for (;;)
     {
         cudaEventRecord(start, 0);
@@ -84,61 +188,8 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         if (frame.empty())
             break;
 
-        const int height = frame.rows;
-        const int width = frame.cols;
-        const int numPixels = height * width;
-        const size_t ksize = 15;
-
         cudaEventRecord(start_step, 0);
-        const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
-        cudaEventRecord(end_step, 0);
-        cudaEventSynchronize(end_step);
-        cudaEventElapsedTime(&duration, start_step, end_step);
-        timers.get_gaussian_matrix += duration;
-
-        const uchar threshold = 20;
-        const uchar maxval_tresh = 255;
-        const int morphologicalCircleDiameter = 15;
-
-        cudaEventRecord(start_step, 0);
-        const uchar *circleKernel =
-            getCircleKernel(morphologicalCircleDiameter);
-        cudaEventRecord(end_step, 0);
-        cudaEventSynchronize(end_step);
-        cudaEventElapsedTime(&duration, start_step, end_step);
-        timers.get_circle_kernel += duration;
-
-        uchar3 *d_background;
-        uchar3 *d_frame;
-
-        uchar *d_bgd;
-        uchar *d_input;
-        uchar *d_tmp;
-
-        float *d_gaussianKernel;
-        uchar *d_circleKernel;
-
-        cudaEventRecord(start_step, 0);
-        cudaMalloc(&d_background, numPixels * sizeof(uchar3));
-        cudaMalloc(&d_frame, numPixels * sizeof(uchar3));
-        cudaMalloc(&d_input, numPixels * sizeof(uchar));
-        cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
-        cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float));
-        cudaMalloc(&d_circleKernel,
-                   morphologicalCircleDiameter * morphologicalCircleDiameter
-                       * sizeof(uchar));
-        cudaMalloc(&d_tmp, height * width * sizeof(uchar));
-        cudaMemset(d_tmp, 0, height * width * sizeof(uchar));
-
-        cudaMemcpy(d_background, background.ptr<uchar3>(0),
-                   numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
         cudaMemcpy(d_frame, frame.ptr<uchar3>(0), numPixels * sizeof(uchar3),
-                   cudaMemcpyHostToDevice);
-        cudaMemcpy(d_gaussianKernel, gaussianKernel,
-                   ksize * ksize * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_circleKernel, circleKernel,
-                   morphologicalCircleDiameter * morphologicalCircleDiameter
-                       * sizeof(uchar),
                    cudaMemcpyHostToDevice);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
@@ -147,7 +198,6 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // grayscale
         cudaEventRecord(start_step, 0);
-        grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
         grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
@@ -156,8 +206,6 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // blur
         cudaEventRecord(start_step, 0);
-        blurGPU<<<gridDim, blockDim>>>(d_bgd, d_bgd, height, width,
-                                       d_gaussianKernel, ksize);
         blurGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
                                        d_gaussianKernel, ksize);
         cudaEventRecord(end_step, 0);
@@ -186,7 +234,7 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         cudaEventRecord(start_step, 0);
 
         cudaEventRecord(start_substep, 0);
-        dilateGPU<<<gridDim, blockDim>>>(d_input, d_tmp, height, width,
+        dilateGPU<<<gridDim, blockDim>>>(d_input, d_swap, height, width,
                                          d_circleKernel, ksize);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
@@ -194,22 +242,14 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         timers.kernel_dilateGPU += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        erodeGPU<<<gridDim, blockDim>>>(d_tmp, d_input, height, width,
+        erodeGPU<<<gridDim, blockDim>>>(d_swap, d_input, height, width,
                                         d_circleKernel, ksize);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
         timers.kernel_erodeGPU += sub_duration;
 
-        cudaEventRecord(start_substep, 0);
-        cudaMemcpy(d_input, d_tmp, height * width * sizeof(uchar),
-                   cudaMemcpyDeviceToDevice);
-        cudaEventRecord(end_substep, 0);
-
         cudaEventRecord(end_step, 0);
-        cudaEventSynchronize(end_substep);
-        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
-        timers.gpu_mem_management += sub_duration;
 
         cudaEventSynchronize(end_step);
         cudaEventElapsedTime(&duration, start_step, end_step);
@@ -218,38 +258,29 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         // connectedComps
         cudaEventRecord(start_step, 0);
 
-        int *d_labelled;
         cudaEventRecord(start_substep, 0);
-        cudaMalloc(&d_labelled, height * width * sizeof(int));
-        cudaEventRecord(end_substep, 0);
-        cudaEventSynchronize(end_substep);
-        cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
-        timers.gpu_mem_management += sub_duration;
-
-        cudaEventRecord(start_substep, 0);
-        initCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        initCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
         timers.kernel_initCCL += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        mergeCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        mergeCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
         timers.kernel_mergeCCL += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        compressCCL<<<gridDim, blockDim>>>(d_input, d_labelled, height, width);
+        compressCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
         timers.kernel_compressCCL += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        int *labelled = new int[height * width];
-        cudaMemcpy(labelled, d_labelled, height * width * sizeof(int),
+        cudaMemcpy(labels, d_labels, height * width * sizeof(int),
                    cudaMemcpyDeviceToHost);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
@@ -263,30 +294,11 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // bboxes
         cudaEventRecord(start_step, 0);
-        std::vector<cv::Rect> bboxes =
-            getBoundingBoxes(labelled, width, height);
+        std::vector<cv::Rect> bboxes = getBoundingBoxes(labels, width, height);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
         cudaEventElapsedTime(&duration, start_step, end_step);
         timers.bboxes += duration;
-
-        cudaEventRecord(start_step, 0);
-        cudaFree(d_labelled);
-        cudaFree(d_background);
-        cudaFree(d_frame);
-        cudaFree(d_input);
-        cudaFree(d_bgd);
-        cudaFree(d_gaussianKernel);
-        cudaFree(d_circleKernel);
-        cudaFree(d_tmp);
-
-        delete[] gaussianKernel;
-        delete[] circleKernel;
-        delete[] labelled;
-        cudaEventRecord(end_step, 0);
-        cudaEventSynchronize(end_step);
-        cudaEventElapsedTime(&duration, start_step, end_step);
-        timers.gpu_mem_management += duration;
 
         cudaEventRecord(end, 0);
         cudaEventSynchronize(end);
@@ -297,6 +309,22 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
               << capture.get(cv::CAP_PROP_FRAME_COUNT)
             / (total_duration / 1000.0f)
               << std::endl;
+
+    cudaEventRecord(start_step, 0);
+    cudaFree(d_labels);
+    cudaFree(d_swap);
+    cudaFree(d_input);
+    cudaFree(d_frame);
+    cudaFree(d_circleKernel);
+    cudaFree(d_gaussianKernel);
+    cudaFree(d_bgd);
+    delete[] labels;
+    delete[] circleKernel;
+    delete[] gaussianKernel;
+    cudaEventRecord(end_step, 0);
+    cudaEventSynchronize(end_step);
+    cudaEventElapsedTime(&duration, start_step, end_step);
+    timers.gpu_mem_management += duration;
 
     cudaEventDestroy(start);
     cudaEventDestroy(start_step);
@@ -671,6 +699,7 @@ int main(int argc, char **argv)
     std::cout << std::endl
               << "Start to finish: " << duration / 1000.0f << "ms" << std::endl;
 
+    /*
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "CPU Bench (v" << _CPU_VERSION << "):" << std::endl;
@@ -760,6 +789,7 @@ int main(int argc, char **argv)
 
     std::cout << std::endl
               << "Start to finish: " << duration / 1000.0f << "s" << std::endl;
+    */
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
