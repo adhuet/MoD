@@ -830,7 +830,7 @@ int main(int argc, char **argv)
               << std::setw(13) << std::setprecision(7)
               << timers.morph / nb_frames << "ms" << std::setw(15)
               << timers.morph << "ms" << std::setw(16) << std::setprecision(3)
-              << timers.morph / duration * 100 << "%" << std::endl;
+              << timers.morph / gpu_duration * 100 << "%" << std::endl;
     std::cout << "  - dilateGPU" << std::setfill(' ')
               << std::setw(24 - std::string("  - dilateGPU").size()) << "|"
               << std::setw(13) << std::setprecision(7)
