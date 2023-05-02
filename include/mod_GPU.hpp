@@ -17,6 +17,7 @@
 
 std::vector<cv::Rect> detectObjectInFrameGPU(const cv::Mat &background,
                                              const cv::Mat &frame);
+int renderObjectsInCaptureGPU(cv::VideoCapture capture);
 
 __global__ void grayscaleGPU(const uchar3 *src, uchar *dst, int height,
                              int width);
