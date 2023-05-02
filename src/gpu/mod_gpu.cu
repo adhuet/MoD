@@ -46,8 +46,7 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
     uchar *d_swap; // This allows copy and manipulation of the frame
 
     float *d_gaussianKernel; // Device buffer for the blur kernel
-    uchar
-        *d_circleKernel; // Device buffer for the morphological kernel (circle)
+    uchar *d_circleKernel; // Device buffer for the morphological kernel
 
     int *d_labels; // This holds the symbollic image after CCL
 
