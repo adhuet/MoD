@@ -49,6 +49,14 @@ void erodeBinary255(const SImage &src, SImage &dst, uchar *kernel,
 void dilateBinary255(const SImage &src, SImage &dst, uchar *kernel,
                      size_t ksize);
 
+// Device constants defined in mod_gpu.cu
+constexpr size_t gauss_ksize = 15;
+constexpr double sigma = 2.0;
+extern __device__ __constant__ float c_gaussianKernel[];
+
+constexpr size_t morph_circle_diameter = 15;
+extern __device__ __constant__ uchar c_circleKernel[];
+
 BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 {
     BM_times timers = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -81,10 +89,9 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     const int height = background.rows;
     const int width = background.cols;
     const int numPixels = height * width;
-    const size_t ksize = 15;
 
     cudaEventRecord(start_step, 0);
-    const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
+    const float *gaussianKernel = getGaussianMatrix(gauss_ksize, sigma);
     cudaEventRecord(end_step, 0);
     cudaEventSynchronize(end_step);
     cudaEventElapsedTime(&duration, start_step, end_step);
@@ -92,17 +99,16 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
     const uchar threshold = 20;
     const uchar maxval_tresh = 255;
-    const int morphological_circle_diameter = 15;
 
     cudaEventRecord(start_step, 0);
-    const uchar *circleKernel = getCircleKernel(morphological_circle_diameter);
+    const uchar *circleKernel = getCircleKernel(morph_circle_diameter);
     cudaEventRecord(end_step, 0);
     cudaEventSynchronize(end_step);
     cudaEventElapsedTime(&duration, start_step, end_step);
     timers.get_circle_kernel += duration;
 
     // Tiling configuration for blurTiledGPU and morphTiled kernels
-    const size_t tile_width = blockDim.x - ksize + 1;
+    const size_t tile_width = blockDim.x - gauss_ksize + 1;
     dim3 tiledGridDim(int(ceil((float)width / tile_width)),
                       int(ceil((float)height / tile_width)));
 
@@ -125,27 +131,20 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     uchar *d_input; // This hold the frame throughout all of the processing
     uchar *d_swap; // This allows copy and manipulation of the frame
 
-    float *d_gaussianKernel; // Device buffer for the blur kernel
-    uchar *d_circleKernel; // Device buffer for the morphological kernel
-
     int *d_labels; // This holds the symbollic image after CCL
 
     cudaEventRecord(start_step, 0);
     // Allocations necessary for background
     cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
-    cudaMalloc(&d_gaussianKernel, ksize * ksize * sizeof(float));
-    cudaMalloc(&d_circleKernel,
-               morphological_circle_diameter * morphological_circle_diameter
-                   * sizeof(uchar));
     cudaMalloc(&d_background, numPixels * sizeof(uchar3));
     // Initialization
-    // FIXME, put those into constant memory
-    cudaMemcpy(d_gaussianKernel, gaussianKernel, ksize * ksize * sizeof(float),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_circleKernel, circleKernel,
-               morphological_circle_diameter * morphological_circle_diameter
-                   * sizeof(uchar),
-               cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(c_gaussianKernel, gaussianKernel,
+                       gauss_ksize * gauss_ksize * sizeof(float), 0,
+                       cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(c_circleKernel, circleKernel,
+                       morph_circle_diameter * morph_circle_diameter
+                           * sizeof(uchar),
+                       0, cudaMemcpyHostToDevice);
 
     // Background processing
     // Copy background to device
@@ -165,9 +164,12 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     timers.grayscale += duration;
 
     cudaEventRecord(start_step, 0);
-    blurTiledGPU<<<tiledGridDim, blockDim,
-                   blockDim.x * blockDim.x * sizeof(uchar)>>>(
-        d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
+    // blurTiledGPU<<<tiledGridDim, blockDim,
+    //                blockDim.x * blockDim.x * sizeof(uchar)>>>(
+    //     d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
+    blurTiledConstantGPU<<<tiledGridDim, blockDim,
+                           blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        d_bgd, d_bgd, height, width);
     cudaEventRecord(end_step, 0);
     cudaEventSynchronize(end_step);
     cudaEventElapsedTime(&duration, start_step, end_step);
@@ -212,9 +214,9 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // blur
         cudaEventRecord(start_step, 0);
-        blurTiledGPU<<<tiledGridDim, blockDim,
-                       blockDim.x * blockDim.x * sizeof(uchar)>>>(
-            d_input, d_input, height, width, d_gaussianKernel, ksize);
+        blurTiledConstantGPU<<<tiledGridDim, blockDim,
+                               blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_input, d_input, height, width);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
         cudaEventElapsedTime(&duration, start_step, end_step);
@@ -241,18 +243,18 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         cudaEventRecord(start_step, 0);
 
         cudaEventRecord(start_substep, 0);
-        dilateTiledGPU<<<tiledGridDim, blockDim,
-                         blockDim.x * blockDim.x * sizeof(uchar)>>>(
-            d_input, d_swap, height, width, d_circleKernel, ksize);
+        dilateTiledConstantGPU<<<tiledGridDim, blockDim,
+                                 blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_input, d_swap, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
         timers.kernel_dilateGPU += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        erodeTiledGPU<<<tiledGridDim, blockDim,
-                        blockDim.x * blockDim.x * sizeof(uchar)>>>(
-            d_swap, d_input, height, width, d_circleKernel, ksize);
+        erodeTiledConstantGPU<<<tiledGridDim, blockDim,
+                                blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_swap, d_input, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
         cudaEventElapsedTime(&sub_duration, start_substep, end_substep);
@@ -324,8 +326,6 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     cudaFree(d_swap);
     cudaFree(d_input);
     cudaFree(d_frame);
-    cudaFree(d_circleKernel);
-    cudaFree(d_gaussianKernel);
     cudaFree(d_bgd);
     delete[] labels;
     delete[] circleKernel;
