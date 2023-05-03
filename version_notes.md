@@ -38,3 +38,17 @@ Effect:
 - Using constant memory to store kernel mask improved performance, with similar memory bandwidth impact for copy
 - Overall, performance decreased. GPU V1.3 will focus on implementing solely constant memory usage, and drop the modification fo v1.2 for shared memory.
 - After fix, performance is better as expected originally. Increase of ~55fps, and half the time for the new kernels.
+
+## GPU v1.3
+### Prefetching for shared memory kernels
+
+v1.2: shared memory had a nice impact on performance, but blur and morph kernels still represent the majority of the exec time. I want to try various optimization for those in the following versions.
+First one to tackle is prefectching. Right now, each block load a shared memory tile to be used in the current computation. The idea would be to have twice the amount of shared memory (which is possible taking into account our numbers) to handle two tiles and hide latency even more.
+
+Changes:
+- [ ] Implement shared memory prefetching for the blur and morph kernels
+
+Notes:
+- This project is coming to an end, and due to time restrictions, this version might be postponed indefinitely.
+
+Changes:
