@@ -22,13 +22,14 @@ v1.1: some constant buffers can be moved to constant memory, and most of the "ea
 - connectedComponents, most of the exec time comes from the Memcpy for the symbollic labelled image, the rest is negligible before performance
 
 Changes:
-- [ ] Use shared memory tiling to blurGPU (v1.1.1)
-- [ ] Use shared memory tiling to dilateGPU (v1.1.1)
-- [ ] Use shared memory tiling to erodeGPU (v1.1.1)
+- [x] Use shared memory tiling to blurGPU (v1.1.1)
+- [x] Use shared memory tiling to dilateGPU (v1.1.1)
+- [x] Use shared memory tiling to erodeGPU (v1.1.1)
 - [ ] Feed blur matrix and morph kernel into constant memory (v1.1.2)
 - [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3)
 
 Notes:
 - On 32x32 blocks, the use of shared memory for blur actually shows a serious drop in performance for reasons yet unknown. This might be a memory spill issue, and the shared memory might mess with the cache. Will need to complete the rest of the optimizations to be sure and test with 64x64, which looks promising.
+- This modification applied to the morph kernels had the same impact. Performance drops drastically. Needs some further investigation.
 
 Effect:
