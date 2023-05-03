@@ -108,9 +108,7 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     timers.get_circle_kernel += duration;
 
     // Tiling configuration for blurTiledGPU and morphTiled kernels
-    const size_t tile_width = blockDim.x - gauss_ksize + 1;
-    dim3 tiledGridDim(int(ceil((float)width / tile_width)),
-                      int(ceil((float)height / tile_width)));
+    const size_t tile_width = blockDim.x + gauss_ksize - 1;
 
     // Host buffers used during computation
     cudaEventRecord(start_step, 0);
@@ -167,8 +165,8 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     // blurTiledGPU<<<tiledGridDim, blockDim,
     //                blockDim.x * blockDim.x * sizeof(uchar)>>>(
     //     d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
-    blurTiledConstantGPU<<<tiledGridDim, blockDim,
-                           blockDim.x * blockDim.x * sizeof(uchar)>>>(
+    blurTiledConstantGPU2<<<gridDim, blockDim,
+                            tile_width * tile_width * sizeof(uchar)>>>(
         d_bgd, d_bgd, height, width);
     cudaEventRecord(end_step, 0);
     cudaEventSynchronize(end_step);
@@ -214,8 +212,8 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // blur
         cudaEventRecord(start_step, 0);
-        blurTiledConstantGPU<<<tiledGridDim, blockDim,
-                               blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        blurTiledConstantGPU2<<<gridDim, blockDim,
+                                tile_width * tile_width * sizeof(uchar)>>>(
             d_input, d_input, height, width);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
@@ -243,8 +241,8 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         cudaEventRecord(start_step, 0);
 
         cudaEventRecord(start_substep, 0);
-        dilateTiledConstantGPU<<<tiledGridDim, blockDim,
-                                 blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        dilateTiledConstantGPU2<<<gridDim, blockDim,
+                                  tile_width * tile_width * sizeof(uchar)>>>(
             d_input, d_swap, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
@@ -252,8 +250,8 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
         timers.kernel_dilateGPU += sub_duration;
 
         cudaEventRecord(start_substep, 0);
-        erodeTiledConstantGPU<<<tiledGridDim, blockDim,
-                                blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        erodeTiledConstantGPU2<<<gridDim, blockDim,
+                                 tile_width * tile_width * sizeof(uchar)>>>(
             d_swap, d_input, height, width);
         cudaEventRecord(end_substep, 0);
         cudaEventSynchronize(end_substep);
