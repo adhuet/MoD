@@ -52,3 +52,15 @@ Notes:
 - This project is coming to an end, and due to time restrictions, this version might be postponed indefinitely.
 
 Changes:
+
+## Future versions
+### Various optimizations
+
+Connected components is in itself and algorithm that is fairly optimized, and computation time stays low compared to other kernels.
+The morph and blur shared memory kernels represent the bulk of the computation, but are basically simple 2D convolutions. A lot of optimizations can be applied to speed them up even more:
+- prefecthing, and playing with instruction mix
+- loop unrolling, specifically for memory loading, as the load itself relies on few registers, and can further improve instruction mix
+- memory coalescing, the access strides cannot be simpler here, and memory is accessed is a coalesced way already, so there is not much to be done
+- registers and shared memory optimizations, verifying occupancy with benchmark tools (Nvidia NSight), maybe play around cache/shared/constant size and see what's happening
+- memory communication, it is already fairly optimized, with 2 memcpys per frame, which is the minimum for this computation, unless bboxes generation can be done on the GPU
+- kernel launch overhead, all kernels are executed sequentially, and there is not much to be done here
