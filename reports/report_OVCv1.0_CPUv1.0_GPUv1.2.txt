@@ -6,41 +6,58 @@ Total nb of frames: 124
 Duration: 2480ms
 --------------------------------------------------------------------------
 OPENCV Bench (v1):
-FPS: 310.2
+FPS: 464.7
 
 STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
 
-grayscale              |     365.1452μs          45278μs            11.2%
-blur                   |     469.0323μs          58160μs            14.3%
-diff                   |     31.21774μs           3871μs           0.954%
-threshold              |     18.41935μs           2284μs           0.563%
-morph                  |     1209.121μs         149931μs              37%
-connectedComps         |     310.3306μs          38481μs            9.48%
-bboxes                 |     215.6129μs          26736μs            6.59%
+grayscale              |      185.621μs          23017μs            8.45%
+blur                   |     318.0726μs          39441μs            14.5%
+diff                   |     15.69355μs           1946μs           0.715%
+threshold              |     11.69355μs           1450μs           0.532%
+morph                  |     1101.911μs         136637μs            50.2%
+connectedComps         |     169.7742μs          21052μs            7.73%
+bboxes                 |     105.7984μs          13119μs            4.82%
 
-Start to finish: 406ms
+Start to finish: 272ms
+--------------------------------------------------------------------------
+CPU Bench (v1):
+FPS: 2.2
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscale              |     1.072581ms            133ms           0.236%
+blur                   |     286.0806ms          35474ms          0.0629%
+  - getGaussianMatrix  |     16.96774μs           2104μs            3.73%
+diff                   |       288.25μs          35743μs          0.0634%
+threshold              |     309.8468μs          38421μs          0.0681%
+morph                  |     127.4113ms          15799ms              28%
+  - getCircleKernel    |     2.209677μs            274μs        0.000486%
+connectedComps         |        17.75ms           2201ms             3.9%
+bboxes                 |     18.58871ms           2305ms            4.09%
+
+Start to finish: 56.4s
 --------------------------------------------------------------------------
 GPU Bench (v1.2):
-blockDim: 32x32
-gridDim: 19x11
-FPS: 192.8
+blockDim: 16x16
+gridDim: 38x21
+FPS: 223.3
 
 STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
 
-grayscaleGPU           |     46.05626µs       5.710976ms            0.88%
-blurGPU                |     911.9634µs       113.0835ms            17.4%
-  - getGaussianMatrix  |   0.05909677µs       0.007328ms         0.00113%
-diffGPU                |     28.38865µs       3.520192ms           0.543%
-thresholdGPU           |       25.088µs       3.110912ms           0.479%
-morph                  |     2275.744µs       282.1922ms            43.5%
-  - dilateGPU          |     1122.045µs       139.1336ms            21.4%
-  - erodeGPU           |     1126.151µs       139.6428ms            21.5%
-  - getCircleKernel    |   0.01832258µs       0.002272ms         0.00035%
-connectedComps         |     596.8764µs       74.01267ms            11.4%
-  - initCCL            |     34.73961µs       4.307712ms           0.664%
-  - mergeCCL           |     60.76542µs       7.534912ms            1.16%
-  - compressCCL        |     19.18348µs       2.378752ms           0.367%
-bboxes                 |     457.4072µs        56.7185ms            8.74%
-Mem. Management        |     711.3737µs       88.21034ms            13.6%
+grayscaleGPU           |     31.83406µs       3.947424ms           0.705%
+blurGPU                |     919.0955µs       113.9678ms            20.3%
+  - getGaussianMatrix  |   0.02270968µs       0.002816ms        0.000503%
+diffGPU                |      23.8671µs        2.95952ms           0.528%
+thresholdGPU           |     24.87794µs       3.084864ms           0.551%
+morph                  |     2270.881µs       281.5893ms            50.3%
+  - dilateGPU          |     1128.652µs       139.9529ms              25%
+  - erodeGPU           |     1130.441µs       140.1747ms              25%
+  - getCircleKernel    |  0.008774194µs       0.001088ms        0.000194%
+connectedComps         |     420.3071µs       52.11808ms             9.3%
+  - initCCL            |     23.84232µs       2.956448ms           0.528%
+  - mergeCCL           |     47.50168µs       5.890208ms            1.05%
+  - compressCCL        |       20.312µs       2.518688ms            0.45%
+bboxes                 |     352.8893µs       43.75827ms            7.81%
+Mem. Management        |     480.0885µs       59.53098ms            10.6%
 
-Start to finish: 0.649s
+Start to finish: 0.56s

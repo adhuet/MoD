@@ -706,7 +706,6 @@ int main(int argc, char **argv)
     std::cout << std::endl
               << "Start to finish: " << duration / 1000.0f << "ms" << std::endl;
 
-    /*
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "CPU Bench (v" << _CPU_VERSION << "):" << std::endl;
@@ -796,13 +795,12 @@ int main(int argc, char **argv)
 
     std::cout << std::endl
               << "Start to finish: " << duration / 1000.0f << "s" << std::endl;
-    */
 
     capture.set(cv::CAP_PROP_POS_FRAMES, 0);
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "GPU Bench (v" << _GPU_VERSION << "):" << std::endl;
 
-    dim3 blockDim(32, 32);
+    dim3 blockDim(16, 16);
     dim3 gridDim(int(ceil((float)width / blockDim.x)),
                  int(ceil((float)height / blockDim.y)));
 
