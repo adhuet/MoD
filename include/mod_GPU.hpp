@@ -28,6 +28,10 @@ __global__ void blurTiledGPU(const uchar *src, uchar *dst, int height,
                              int width, float *kernel, size_t ksize);
 __global__ void blurTiledConstantGPU(const uchar *src, uchar *dst, int height,
                                      int width);
+__global__ void blurTiledGPU2(const uchar *src, uchar *dst, int height,
+                              int width, float *kernel, int ksize);
+__global__ void blurTiledConstantGPU2(const uchar *src, uchar *dst, int height,
+                                      int width);
 
 __global__ void diffGPU(const uchar *src1, const uchar *src2, uchar *dst,
                         int height, int width);
@@ -47,6 +51,10 @@ __global__ void dilateTiledConstantGPU(const uchar *src, uchar *dst, int height,
                                        int width);
 __global__ void erodeTiledConstantGPU(const uchar *src, uchar *dst, int height,
                                       int width);
+__global__ void dilateTiledConstantGPU2(const uchar *src, uchar *dst,
+                                        int height, int width);
+__global__ void erodeTiledConstantGPU2(const uchar *src, uchar *dst, int height,
+                                       int width);
 
 __global__ void initCCL(const uchar *src, int *dst, int height, int width);
 __global__ void mergeCCL(const uchar *src, int *dst, int height, int width);

@@ -44,6 +44,7 @@ __global__ void blurTiledConstantGPU(const uchar *src, uchar *dst, int height,
             dst[row_o * width + col_o] = static_cast<uchar>(round(sum));
     }
 }
+
 // Input method
 __global__ void blurTiledGPU(const uchar *src, uchar *dst, int height,
                              int width, float *kernel, size_t ksize)
@@ -87,92 +88,122 @@ __global__ void blurTiledGPU(const uchar *src, uchar *dst, int height,
     }
 }
 
-// FIXME Output method
-/*
-__global__ void blurTiledGPU(const uchar *src, uchar *dst, int height,
-                             int width, float *kernel, size_t ksize)
+__global__ void blurTiledGPU2(const uchar *src, uchar *dst, int height,
+                              int width, float *kernel, int ksize)
 {
-    extern __shared__ uchar tile[];
-    size_t tile_width = blockDim.x + 2 * (ksize / 2);
+    extern __shared__ uchar tile_src[];
+    size_t shared_width = blockDim.x + ksize - 1;
+    size_t tile_width = blockDim.x;
+    // 1. Phase to Load Data into Shared Memory. Each Thread loads multiple
+    // elements indexed by each Batch loading
+    // 1.o_idx: RMO ID 2. o_row & o_col: Row and Column of Shared Memory
+    // 3. i_row & i_col: Indexes to fetch data from input Image
+    // 4. src: RMO index of Input Image
 
-    int radius = ksize / 2;
+    // First batch loading
+    int o_idx = threadIdx.y * tile_width + threadIdx.x,
+        o_row = o_idx / shared_width, o_col = o_idx % shared_width,
+        i_row = blockIdx.y * tile_width + o_row - (ksize / 2),
+        i_col = blockIdx.x * tile_width + o_col - (ksize / 2),
+        i_idx = (i_row * width + i_col);
+    if (i_row >= 0 && i_row < height && i_col >= 0 && i_col < width)
+        tile_src[o_row * shared_width + o_col] = src[i_idx];
+    else
+        tile_src[o_row * shared_width + o_col] = 0.0;
 
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
-    int row = blockIdx.y * blockDim.y + ty;
-    int col = blockIdx.x * blockDim.x + tx;
-
-    // Load left column
-    int col_left = (blockIdx.x - 1) * blockDim.x + tx;
-    if (tx >= blockDim.x - radius)
-        tile[(radius + ty) * tile_width + tx - (blockDim.x - radius)] =
-            (col_left < 0) ? 0 : src[row * width + col_left]; // Border check
-
-    // Load right column
-    int col_right = (blockIdx.x + 1) * blockDim.x + tx;
-    if (tx < radius)
-        tile[(radius + ty) * tile_width + radius + blockDim.x + tx] =
-            (col_right >= width) ? 0 : src[row * width + col_right];
-
-    // Load top row
-    int row_top = (blockIdx.y - 1) * blockDim.y + ty;
-    if (ty >= blockDim.y - radius)
-        tile[(ty - (blockDim.y - radius)) * tile_width + radius + tx] =
-            (row_top < 0) ? 0 : src[row_top * width + col];
-
-    // Load bottom_row
-    int row_bottom = (blockIdx.y + 1) * blockDim.y + ty;
-    if (ty < radius)
-        tile[(radius + blockDim.y + ty) * tile_width + radius + tx] =
-            (row_bottom >= height) ? 0 : src[row_bottom * width + col];
-
-    // Load corners
-    // Left side
-    if (tx == 0)
+    for (int iter = 1;
+         iter <= (shared_width * shared_width) / (tile_width * tile_width);
+         iter++)
     {
-        // Top-left corner loads bottom-right
-        if (ty == 0)
-            tile[(tile_width - 1) * tile_width + tile_width - 1] =
-                (row_bottom >= height || col_right >= width)
-                ? 0
-                : src[row_bottom * width + col_right];
-        // Bottom-left loads top-right element
-        else if (ty == blockDim.y - 1)
-            tile[(0) * tile_width + tile_width - 1] =
-                (row_top < 0 || col_right >= width)
-                ? 0
-                : src[row_top * width + col_right];
+        // Second batch loading
+        o_idx = threadIdx.y * tile_width + threadIdx.x
+            + iter * (tile_width * tile_width);
+        o_row = o_idx / shared_width, o_col = o_idx % shared_width;
+        i_row = blockIdx.y * tile_width + o_row - (ksize / 2);
+        i_col = blockIdx.x * tile_width + o_col - (ksize / 2);
+        i_idx = (i_row * width + i_col);
+        if (o_row < shared_width && o_col < shared_width)
+        {
+            if (i_row >= 0 && i_row < height && i_col >= 0 && i_col < width)
+                tile_src[o_row * shared_width + o_col] = src[i_idx];
+            else
+                tile_src[o_row * shared_width + o_col] = 0.0;
+        }
     }
-    // Right side
-    if (tx == blockDim.x - 1)
-    {
-        // Top-right loads bottom-left
-        if (ty == 0)
-            tile[(tile_width - 1) * tile_width + 0] =
-                (row_bottom >= height || col_left < 0)
-                ? 0
-                : src[row_bottom * width + col_left];
-        // Bottom-right loads top-left
-        else if (ty == blockDim.y - 1)
-            tile[(0) * tile_width + 0] = (row_top < 0 || col_left < 0)
-                ? 0
-                : src[row_top * width + col_left];
-    }
-    // Load internal tile elements
-    tile[(radius + ty) * tile_width + radius + tx] =
-        (row >= height || col >= width) ? 0 : src[row * width + col];
     __syncthreads();
 
-    float sum = 0;
-    for (int i = 0; i < ksize; i++) // y
-    {
-        for (int j = 0; j < ksize; j++) // x
-            sum += kernel[i * ksize + j] * tile[(ty + i) * tile_width + tx + j];
-    }
-
-    dst[row * width + col] = static_cast<uchar>(round(sum));
+    float accum = 0;
+    int y, x;
+    for (y = 0; y < ksize; y++)
+        for (x = 0; x < ksize; x++)
+            accum +=
+                tile_src[(threadIdx.y + y) * shared_width + threadIdx.x + x]
+                * kernel[y * ksize + x];
+    y = blockIdx.y * tile_width + threadIdx.y;
+    x = blockIdx.x * tile_width + threadIdx.x;
+    if (y < height && x < width)
+        // dst[(y * width + x)] = clamp(accum);
+        dst[(y * width + x)] = static_cast<uchar>(round(accum));
+    __syncthreads();
 }
-*/
+
+__global__ void blurTiledConstantGPU2(const uchar *src, uchar *dst, int height,
+                                      int width)
+{
+    extern __shared__ uchar tile_src[];
+    size_t shared_width = blockDim.x + c_gauss_ksize - 1;
+    size_t tile_width = blockDim.x;
+    // 1. Phase to Load Data into Shared Memory. Each Thread loads multiple
+    // elements indexed by each Batch loading
+    // 1.o_idx: RMO ID 2. o_row & o_col: Row and Column of Shared Memory
+    // 3. i_row & i_col: Indexes to fetch data from input Image
+    // 4. src: RMO index of Input Image
+
+    // First batch loading
+    int o_idx = threadIdx.y * tile_width + threadIdx.x,
+        o_row = o_idx / shared_width, o_col = o_idx % shared_width,
+        i_row = blockIdx.y * tile_width + o_row - (c_gauss_ksize / 2),
+        i_col = blockIdx.x * tile_width + o_col - (c_gauss_ksize / 2),
+        i_idx = (i_row * width + i_col);
+    if (i_row >= 0 && i_row < height && i_col >= 0 && i_col < width)
+        tile_src[o_row * shared_width + o_col] = src[i_idx];
+    else
+        tile_src[o_row * shared_width + o_col] = 0.0;
+
+    for (int iter = 1;
+         iter <= (shared_width * shared_width) / (tile_width * tile_width);
+         iter++)
+    {
+        // Second batch loading
+        o_idx = threadIdx.y * tile_width + threadIdx.x
+            + iter * (tile_width * tile_width);
+        o_row = o_idx / shared_width, o_col = o_idx % shared_width;
+        i_row = blockIdx.y * tile_width + o_row - (c_gauss_ksize / 2);
+        i_col = blockIdx.x * tile_width + o_col - (c_gauss_ksize / 2);
+        i_idx = (i_row * width + i_col);
+        if (o_row < shared_width && o_col < shared_width)
+        {
+            if (i_row >= 0 && i_row < height && i_col >= 0 && i_col < width)
+                tile_src[o_row * shared_width + o_col] = src[i_idx];
+            else
+                tile_src[o_row * shared_width + o_col] = 0.0;
+        }
+    }
+    __syncthreads();
+
+    float accum = 0;
+    int y, x;
+    for (y = 0; y < c_gauss_ksize; y++)
+        for (x = 0; x < c_gauss_ksize; x++)
+            accum +=
+                tile_src[(threadIdx.y + y) * shared_width + threadIdx.x + x]
+                * c_gaussianKernel[y * c_gauss_ksize + x];
+    y = blockIdx.y * tile_width + threadIdx.y;
+    x = blockIdx.x * tile_width + threadIdx.x;
+    if (y < height && x < width)
+        dst[(y * width + x)] = static_cast<uchar>(round(accum));
+    __syncthreads();
+}
 
 __global__ void blurGPU(const uchar *src, uchar *dst, int height, int width,
                         float *kernel, size_t ksize)

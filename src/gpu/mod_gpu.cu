@@ -37,9 +37,7 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
     dim3 blockDim(block_width, block_width);
     dim3 gridDim(int(ceil((float)width / block_width)),
                  int(ceil((float)height / block_width)));
-    const size_t blur_tile_width = blockDim.x - gauss_ksize + 1;
-    dim3 tiledGridDim(int(ceil((float)width / blur_tile_width)),
-                      int(ceil((float)height / blur_tile_width)));
+    const size_t tile_width = blockDim.x + gauss_ksize - 1;
 
     // Host buffers used during computation
     int *labels = new int[numPixels]; // Holds the final CCL symbollic image
@@ -88,8 +86,8 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
                numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
     // Process background
     grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
-    blurTiledConstantGPU<<<tiledGridDim, blockDim,
-                           block_width * block_width * sizeof(uchar)>>>(
+    blurTiledConstantGPU2<<<gridDim, blockDim,
+                            tile_width * tile_width * sizeof(uchar)>>>(
         d_bgd, d_bgd, height, width);
     cudaDeviceSynchronize();
     // We do not this the original background buffer, so we release memory as
@@ -130,15 +128,9 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
         // The follwing are done in place
         grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
 
-        blurTiledConstantGPU<<<tiledGridDim, blockDim,
-                               block_width * block_width * sizeof(uchar)>>>(
+        blurTiledConstantGPU2<<<gridDim, blockDim,
+                                tile_width * tile_width * sizeof(uchar)>>>(
             d_input, d_input, height, width);
-
-        // cv::Mat output(cv::Size(width, height), CV_8UC1);
-        // cudaMemcpy(output.ptr<uchar>(0), d_input,
-        //            height * width * sizeof(uchar), cudaMemcpyDeviceToHost);
-
-        // cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
 
         diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
         thresholdGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
@@ -146,11 +138,11 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
 
         // We need the swap array here
         //      Opening: dilate + erode
-        dilateTiledConstantGPU<<<tiledGridDim, blockDim,
-                                 blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        dilateTiledConstantGPU2<<<gridDim, blockDim,
+                                  tile_width * tile_width * sizeof(uchar)>>>(
             d_input, d_swap, height, width);
-        erodeTiledConstantGPU<<<tiledGridDim, blockDim,
-                                blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        erodeTiledConstantGPU2<<<gridDim, blockDim,
+                                 tile_width * tile_width * sizeof(uchar)>>>(
             d_swap, d_input, height, width);
         // cudaMemcpy(d_input, d_swap, numPixels * sizeof(uchar),
         // cudaMemcpyDeviceToDevice);

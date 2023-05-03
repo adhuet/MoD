@@ -839,6 +839,240 @@ Test(blurTiled, radius_two, .disabled = false)
     cudaFree(d_input);
 }
 
+Test(blurTiled2, radius_two, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0, 100, 100,  50, 255, //0,   0,
+        200, 200, 200, 200, 200,   0,   0,   0,   0,   0, 100, 100,  50,  50, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+         10,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,  25,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 5;
+    double sigma = 2.0;
+    float *gaussian_matrix = getGaussianMatrix(ksize, sigma);
+
+    int tile_width = 16;
+    size_t shared_width = tile_width + ksize - 1;
+    dim3 blockDim(tile_width, tile_width);
+    dim3 gridDim((width + tile_width - 1) / tile_width,
+                 (height + tile_width - 1) / tile_width);
+    // dim3 gridDim(int(ceil((float)height / tile_width)),
+    //              int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    float *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, gaussian_matrix, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    blurTiledGPU2<<<gridDim, blockDim,
+                    shared_width * shared_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    blur(SImage(width, height, buffer), expected, ksize, sigma);
+
+    // std::cout << "Expected: " << std::endl;
+    // printMatrix(expected.data, height, width);
+
+    // std::cout << "Actual: " << std::endl;
+    // printMatrix(output, height, width);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] gaussian_matrix;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(blurTiled2, radius_four, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0, 100, 100,  50, 255, //0,   0,
+        200, 200, 200, 200, 200,   0,   0,   0,   0,   0, 100, 100,  50,  50, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+         10,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,  25,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 9;
+    double sigma = 2.0;
+    float *gaussian_matrix = getGaussianMatrix(ksize, sigma);
+
+    int tile_width = 16;
+    size_t shared_width = tile_width + ksize - 1;
+    dim3 blockDim(tile_width, tile_width);
+    dim3 gridDim((width + tile_width - 1) / tile_width,
+                 (height + tile_width - 1) / tile_width);
+    // dim3 gridDim(int(ceil((float)height / tile_width)),
+    //              int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    float *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, gaussian_matrix, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    blurTiledGPU2<<<gridDim, blockDim,
+                    shared_width * shared_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    blur(SImage(width, height, buffer), expected, ksize, sigma);
+
+    // std::cout << "Expected: " << std::endl;
+    // printMatrix(expected.data, height, width);
+
+    // std::cout << "Actual: " << std::endl;
+    // printMatrix(output, height, width);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] gaussian_matrix;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(blurTiled2, radius_three, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0, 100, 100,  50, 255, //0,   0,
+        200, 200, 200, 200, 200,   0,   0,   0,   0,   0, 100, 100,  50,  50, //0,   0,
+          0, 200, 200, 200,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+         10,   1, 200,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,  50,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,  25,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 7;
+    double sigma = 2.0;
+    float *gaussian_matrix = getGaussianMatrix(ksize, sigma);
+
+    int tile_width = 16;
+    size_t shared_width = tile_width + ksize - 1;
+    dim3 blockDim(tile_width, tile_width);
+    dim3 gridDim((width + tile_width - 1) / tile_width,
+                 (height + tile_width - 1) / tile_width);
+    // dim3 gridDim(int(ceil((float)height / tile_width)),
+    //              int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    float *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, gaussian_matrix, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    // blurTiledGPU2<<<gridDim, blockDim,
+    //                 shared_width * shared_width * sizeof(uchar)>>>(
+    //     d_input, d_output, height, width, d_kernel, ksize);
+    blurTiledGPU2<<<gridDim, blockDim,
+                    shared_width * shared_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    blur(SImage(width, height, buffer), expected, ksize, sigma);
+
+    // std::cout << "Expected: " << std::endl;
+    // printMatrix(expected.data, height, width);
+
+    // std::cout << "Actual: " << std::endl;
+    // printMatrix(output, height, width);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] gaussian_matrix;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
 Test(blurTiled, radius_four, .disabled = false)
 {
     constexpr int height = 13;
