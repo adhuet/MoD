@@ -25,7 +25,7 @@ Changes:
 - [ ] Use shared memory tiling to blurGPU (v1.1.1)
 - [ ] Use shared memory tiling to dilateGPU (v1.1.1)
 - [ ] Use shared memory tiling to erodeGPU (v1.1.1)
-- [ ] Feed blur matrix and morph kernel into shared memory (v1.1.2)
+- [ ] Feed blur matrix and morph kernel into constant memory (v1.1.2)
 - [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3)
 
 Notes:
