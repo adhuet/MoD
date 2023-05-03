@@ -96,4 +96,8 @@ report: benchsuite
 clean:
 	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o gputestsuite benchsuite
 
+nvprof: CUDA_FLAGS += -lineinfo
+nvprof: $(CUDA_BIN)
+	nvprof --metrics achieved_occupancy,sm_efficiency,sm_cta_launch_latency,sm_activity,branch_efficiency,branch_divergence,cycles_elapsed,gld_transactions,gst_transactions,flop_count_sp,flop_count_dp,local_load_transactions_per_request,local_store_transactions_per_request,shared_load_transactions_per_request,shared_store_transactions_per_request,l1_cache_global_hit_rate,l1_cache_local_hit_rate,l2_l1_read_hit_rate,l2_l1_write_hit_rate,shared_efficiency,shared_utilization,registers_per_thread,shared_size_bytes --print-gpu-trace ./$(CUDA_BIN) $(INPUT_FILE)
+
 .PHONY: all clean run bench check gpucheck
