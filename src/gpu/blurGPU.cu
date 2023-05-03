@@ -1,5 +1,49 @@
 #include "mod_GPU.hpp"
 
+extern __device__ __constant__ size_t c_gauss_ksize;
+extern __device__ __constant__ float c_gaussianKernel[];
+
+__global__ void blurTiledConstantGPU(const uchar *src, uchar *dst, int height,
+                                     int width)
+{
+    extern __shared__ uchar tile_src[];
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int tile_width = blockDim.x - c_gauss_ksize + 1;
+    int block_width = blockDim.x;
+
+    // Get the output indices
+    int row_o = ty + blockIdx.y * tile_width;
+    int col_o = tx + blockIdx.x * tile_width;
+
+    // Input, tile-loading indices are output plus the kernel radius
+    int row_i = row_o - c_gauss_ksize / 2;
+    int col_i = col_o - c_gauss_ksize / 2;
+
+    // Load tile elements
+    if (row_i >= 0 && row_i < height && col_i >= 0 && col_i < width)
+        tile_src[ty * block_width + tx] = src[row_i * width + col_i];
+    else
+        tile_src[ty * block_width + tx] = 0.0f;
+
+    // Wait until all tile elements are loaded
+    __syncthreads();
+
+    // Only compute if thread is a writer (i.e. within tile)
+    if (tx < tile_width && ty < tile_width)
+    {
+        float sum = 0.0f;
+        for (int y = 0; y < c_gauss_ksize; y++)
+            for (int x = 0; x < c_gauss_ksize; x++)
+                sum += c_gaussianKernel[y * c_gauss_ksize + x]
+                    * tile_src[(y + ty) * block_width + (x + tx)];
+
+        // Final boundary check for write
+        if (row_o < height && col_o < width)
+            dst[row_o * width + col_o] = static_cast<uchar>(round(sum));
+    }
+}
 // Input method
 __global__ void blurTiledGPU(const uchar *src, uchar *dst, int height,
                              int width, float *kernel, size_t ksize)

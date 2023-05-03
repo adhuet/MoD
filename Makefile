@@ -27,7 +27,7 @@ UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils))
 UTILS_OBJS = $(UTILS_SRC:.cpp=.o)
 
 # CUDA IMPLEMENTATION
-CUDA_FLAGS = -O3 -arch=sm_50 -Xcudafe --diag_suppress=611
+CUDA_FLAGS = -O3 -arch=sm_50 -Xcudafe --diag_suppress=611 -rdc=true
 CUDA_SRC = $(wildcard $(addsuffix /*.cu, src/gpu))
 CUDA_SRC := $(filter-out src/gpu/main.cu, $(CUDA_SRC))
 CUDA_OBJS = $(CUDA_SRC:.cu=.o)
