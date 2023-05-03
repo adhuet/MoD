@@ -34,8 +34,8 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
     dim3 gridDim(int(ceil((float)width / block_width)),
                  int(ceil((float)height / block_width)));
     const size_t blur_tile_width = blockDim.x - ksize + 1;
-    dim3 blurGridDim(int(ceil((float)width / blur_tile_width)),
-                     int(ceil((float)height / blur_tile_width)));
+    dim3 tiledGridDim(int(ceil((float)width / blur_tile_width)),
+                      int(ceil((float)height / blur_tile_width)));
 
     // Host buffers used during computation
     int *labels = new int[numPixels]; // Holds the final CCL symbollic image
@@ -77,7 +77,7 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
                numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
     // Process background
     grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
-    blurTiledGPU<<<blurGridDim, blockDim,
+    blurTiledGPU<<<tiledGridDim, blockDim,
                    block_width * block_width * sizeof(uchar)>>>(
         d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
     // We do not this the original background buffer, so we release memory as
@@ -118,7 +118,7 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
         // The follwing are done in place
         grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
 
-        blurTiledGPU<<<blurGridDim, blockDim,
+        blurTiledGPU<<<tiledGridDim, blockDim,
                        block_width * block_width * sizeof(uchar)>>>(
             d_input, d_input, height, width, d_gaussianKernel, ksize);
         diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
@@ -127,21 +127,25 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
 
         // We need the swap array here
         //      Opening: dilate + erode
-        dilateGPU<<<gridDim, blockDim>>>(d_input, d_swap, height, width,
-                                         d_circleKernel,
-                                         morphological_circle_diameter);
-        erodeGPU<<<gridDim, blockDim>>>(d_swap, d_input, height, width,
-                                        d_circleKernel,
-                                        morphological_circle_diameter);
+        dilateTiledGPU<<<gridDim, blockDim,
+                         blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_input, d_swap, height, width, d_circleKernel,
+            morphological_circle_diameter);
+        erodeTiledGPU<<<gridDim, blockDim,
+                        blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_swap, d_input, height, width, d_circleKernel,
+            morphological_circle_diameter);
         // cudaMemcpy(d_input, d_swap, numPixels * sizeof(uchar),
         // cudaMemcpyDeviceToDevice);
         //      Closing: erode + dilate
-        // erodeGPU<<<gridDim, blockDim>>>(d_input, d_swap, height, width,
-        //                                 d_circleKernel,
-        //                                 morphological_circle_diameter);
-        // dilateGPU<<<gridDim, blockDim>>>(d_swap, d_input, height, width,
-        //                                  d_circleKernel,
-        //                                  morphological_circle_diameter);
+        // erodeTiledGPU<<<gridDim, blockDim,
+        //                 blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        //     d_input, d_swap, height, width, d_circleKernel,
+        //     morphological_circle_diameter);
+        // dilateTiledGPU<<<gridDim, blockDim,
+        //                  blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        //     d_swap, d_input, height, width, d_circleKernel,
+        //     morphological_circle_diameter);
 
         // CCL
         initCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);

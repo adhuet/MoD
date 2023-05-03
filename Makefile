@@ -63,7 +63,7 @@ $(TEST_BIN): $(UTILS_OBJS) $(TEST_OBJS) $(CPU_OBJS)
 check: $(TEST_BIN)
 	./testsuite -j4
 
-$(GPUTESTS_BIN): $(GPUTESTS_OBJS) $(CUDA_OBJS) $(UTILS_OBJS) src/cpu/blur.o
+$(GPUTESTS_BIN): $(GPUTESTS_OBJS) $(CUDA_OBJS) $(UTILS_OBJS) src/cpu/blur.o src/cpu/morph.o
 	$(NVCC) -o $@ $^ -lcriterion $(LD_LIBS)
 
 gpucheck: $(GPUTESTS_BIN)

@@ -7,6 +7,11 @@
 #include "mod_GPU.hpp"
 #include "utils.hpp"
 
+void dilateBinary255(const SImage &src, SImage &dst, uchar *kernel,
+                     size_t ksize);
+void erodeBinary255(const SImage &src, SImage &dst, uchar *kernel,
+                    size_t ksize);
+
 #define CUDA_WARN(XXX)                                                         \
     do                                                                         \
     {                                                                          \
@@ -834,7 +839,7 @@ Test(blurTiled, radius_two, .disabled = false)
     cudaFree(d_input);
 }
 
-Test(blurTiled, radius_three, .disabled = false)
+Test(blurTiled, radius_four, .disabled = false)
 {
     constexpr int height = 13;
     constexpr int width = 14;
@@ -1052,4 +1057,568 @@ Test(blurTiled, real_case_scenario, .disabled = true)
     cudaFree(d_output);
     cudaFree(d_input);
     delete[] buffer;
+}
+
+Test(dilateTiled, radius_one, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 3;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 8;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    dilateTiledGPU<<<gridDim, blockDim,
+                     block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    dilateBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                    ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(dilateTiled, radius_two, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 5;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 8;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    dilateTiledGPU<<<gridDim, blockDim,
+                     block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    dilateBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                    ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(dilateTiled, radius_four, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 9;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 16;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    dilateTiledGPU<<<gridDim, blockDim,
+                     block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    dilateBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                    ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(erodeTiled, radius_one, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 3;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 8;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    erodeTiledGPU<<<gridDim, blockDim,
+                    block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    erodeBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                   ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(erodeTiled, radius_two, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 5;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 8;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    erodeTiledGPU<<<gridDim, blockDim,
+                    block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    erodeBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                   ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(erodeTiled, radius_four, .disabled = false)
+{
+    constexpr int height = 13;
+    constexpr int width = 14;
+
+    // clang-format off
+    uchar buffer[height * width] = {
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+        255, 255, 255, 255, 255,   0,   0,   0,   0,   0, 255, 255, 255, 255, //0,   0,
+          0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+        255, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //0,   0,
+          0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0, 255,   0,   0,   0,
+          0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0, 255,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+          0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+    };
+    // clang-format on
+
+    size_t ksize = 9;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    int block_width = 16;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)height / tile_width)),
+                 int(ceil((float)width / tile_width)));
+
+    uchar *d_input;
+    uchar *d_output;
+    uchar *d_kernel;
+
+    uchar *output = new uchar[height * width];
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_output, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    erodeTiledGPU<<<gridDim, blockDim,
+                    block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_output, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_output, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    SImage expected(width, height);
+    erodeBinary255(SImage(width, height, buffer), expected, circle_kernel,
+                   ksize);
+
+    assertArrayEqual(expected.data, output, height * width);
+
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+    cudaFree(d_input);
+}
+
+Test(morphOpenTiled, real_case_scenario)
+{
+    cv::Mat bgd = cv::imread("docs/report_resources/background.png");
+    cv::Mat input = cv::imread("docs/report_resources/source_example.png");
+    cr_assert(!input.empty() && !bgd.empty());
+    cv::cvtColor(input, input, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(bgd, bgd, cv::COLOR_BGR2GRAY);
+    cv::GaussianBlur(input, input, cv::Size(15, 15), 0.2);
+    cv::GaussianBlur(bgd, bgd, cv::Size(15, 15), 0.2);
+
+    cv::absdiff(input, bgd, input);
+    cv::threshold(input, input, 20, 255, cv::THRESH_BINARY);
+
+    int width = input.cols;
+    int height = input.rows;
+
+    size_t ksize = 15;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    uchar *buffer = input.ptr<uchar>(0);
+    uchar *output = new uchar[height * width];
+    uchar *expected = new uchar[height * width];
+
+    int block_width = 32;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 morphTiledGridDim(int(ceil((float)height / tile_width)),
+                           int(ceil((float)width / tile_width)));
+    dim3 morphGridDim(int(ceil((float)height / block_width)),
+                      int(ceil((float)width / block_width)));
+
+    uchar *d_input;
+    uchar *d_swap;
+    uchar *d_kernel;
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_swap, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    dilateTiledGPU<<<morphTiledGridDim, blockDim,
+                     block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_swap, height, width, d_kernel, ksize);
+    erodeTiledGPU<<<morphTiledGridDim, blockDim,
+                    block_width * block_width * sizeof(uchar)>>>(
+        d_swap, d_input, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_input, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+    dilateGPU<<<morphGridDim, blockDim>>>(d_input, d_swap, height, width,
+                                          d_kernel, ksize);
+    erodeGPU<<<morphGridDim, blockDim>>>(d_swap, d_input, height, width,
+                                         d_kernel, ksize);
+    cudaMemcpy(expected, d_input, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    assertArrayEqual(expected, output, height * width);
+
+    delete[] expected;
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_swap);
+    cudaFree(d_input);
+}
+
+Test(morphCloseTiled, real_case_scenario)
+{
+    cv::Mat bgd = cv::imread("docs/report_resources/background.png");
+    cv::Mat input = cv::imread("docs/report_resources/source_example.png");
+    cr_assert(!input.empty() && !bgd.empty());
+    cv::cvtColor(input, input, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(bgd, bgd, cv::COLOR_BGR2GRAY);
+    cv::GaussianBlur(input, input, cv::Size(15, 15), 0.2);
+    cv::GaussianBlur(bgd, bgd, cv::Size(15, 15), 0.2);
+
+    cv::absdiff(input, bgd, input);
+    cv::threshold(input, input, 20, 255, cv::THRESH_BINARY);
+
+    int width = input.cols;
+    int height = input.rows;
+
+    size_t ksize = 15;
+    uchar *circle_kernel = getCircleKernel(ksize);
+
+    uchar *buffer = input.ptr<uchar>(0);
+    uchar *output = new uchar[height * width];
+    uchar *expected = new uchar[height * width];
+
+    int block_width = 32;
+    size_t tile_width = block_width - ksize + 1;
+    dim3 blockDim(block_width, block_width);
+    dim3 morphTiledGridDim(int(ceil((float)height / tile_width)),
+                           int(ceil((float)width / tile_width)));
+    dim3 morphGridDim(int(ceil((float)height / block_width)),
+                      int(ceil((float)width / block_width)));
+
+    uchar *d_input;
+    uchar *d_swap;
+    uchar *d_kernel;
+
+    cudaMalloc(&d_input, height * width * sizeof(uchar));
+    cudaMalloc(&d_swap, height * width * sizeof(uchar));
+    cudaMalloc(&d_kernel, ksize * ksize * sizeof(float));
+
+    cudaMemcpy(d_kernel, circle_kernel, ksize * ksize * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+
+    erodeTiledGPU<<<morphTiledGridDim, blockDim,
+                    block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_swap, height, width, d_kernel, ksize);
+    dilateTiledGPU<<<morphTiledGridDim, blockDim,
+                     block_width * block_width * sizeof(uchar)>>>(
+        d_input, d_swap, height, width, d_kernel, ksize);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(output, d_input, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    cudaMemcpy(d_input, buffer, height * width * sizeof(uchar),
+               cudaMemcpyHostToDevice);
+    erodeGPU<<<morphGridDim, blockDim>>>(d_input, d_swap, height, width,
+                                         d_kernel, ksize);
+    dilateGPU<<<morphGridDim, blockDim>>>(d_swap, d_input, height, width,
+                                          d_kernel, ksize);
+    cudaMemcpy(expected, d_input, height * width * sizeof(uchar),
+               cudaMemcpyDeviceToHost);
+
+    assertArrayEqual(expected, output, height * width);
+
+    delete[] expected;
+    delete[] output;
+    delete[] circle_kernel;
+    cudaFree(d_kernel);
+    cudaFree(d_swap);
+    cudaFree(d_input);
 }
