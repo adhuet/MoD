@@ -25,11 +25,14 @@ Changes:
 - [x] Use shared memory tiling to blurGPU (v1.1.1)
 - [x] Use shared memory tiling to dilateGPU (v1.1.1)
 - [x] Use shared memory tiling to erodeGPU (v1.1.1)
-- [ ] Feed blur matrix and morph kernel into constant memory (v1.1.2)
-- [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3)
+- [x] Feed blur matrix and morph kernel into constant memory (v1.1.2)
+<!-- - [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3) -->
 
 Notes:
 - On 32x32 blocks, the use of shared memory for blur actually shows a serious drop in performance for reasons yet unknown. This might be a memory spill issue, and the shared memory might mess with the cache. Will need to complete the rest of the optimizations to be sure.
 - This modification applied to the morph kernels had the same impact. Performance drops drastically. Needs some further investigation.
 
 Effect:
+- Using shared memory drastically impacted performance, almost doubling the exec time for both blur and morph kernels
+- Using constant memory to store kernel mask improved performance, with similar memory bandwidth impact for copy
+- Overall, performance decreased. GPU V1.3 will focus on implementing solely constant memory usage, and drop the modification fo v1.2 for shared memory.

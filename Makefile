@@ -5,7 +5,7 @@ SHELL = bash
 INCLUDE = -Iinclude
 
 CPU_VERSION = 1.0
-GPU_VERSION = 1.1
+GPU_VERSION = 1.2
 OCV_VERSION = 1.0
 
 CFLAGS = -Wall -Werror -Wextra -O3 -std=c++17 -g
