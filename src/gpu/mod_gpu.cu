@@ -127,22 +127,22 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
 
         // We need the swap array here
         //      Opening: dilate + erode
-        dilateTiledGPU<<<gridDim, blockDim,
+        dilateTiledGPU<<<tiledGridDim, blockDim,
                          blockDim.x * blockDim.x * sizeof(uchar)>>>(
             d_input, d_swap, height, width, d_circleKernel,
             morphological_circle_diameter);
-        erodeTiledGPU<<<gridDim, blockDim,
+        erodeTiledGPU<<<tiledGridDim, blockDim,
                         blockDim.x * blockDim.x * sizeof(uchar)>>>(
             d_swap, d_input, height, width, d_circleKernel,
             morphological_circle_diameter);
         // cudaMemcpy(d_input, d_swap, numPixels * sizeof(uchar),
         // cudaMemcpyDeviceToDevice);
         //      Closing: erode + dilate
-        // erodeTiledGPU<<<gridDim, blockDim,
+        // erodeTiledGPU<<<tiledGridDim, blockDim,
         //                 blockDim.x * blockDim.x * sizeof(uchar)>>>(
         //     d_input, d_swap, height, width, d_circleKernel,
         //     morphological_circle_diameter);
-        // dilateTiledGPU<<<gridDim, blockDim,
+        // dilateTiledGPU<<<tiledGridDim, blockDim,
         //                  blockDim.x * blockDim.x * sizeof(uchar)>>>(
         //     d_swap, d_input, height, width, d_circleKernel,
         //     morphological_circle_diameter);
