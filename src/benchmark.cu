@@ -101,6 +101,11 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     cudaEventElapsedTime(&duration, start_step, end_step);
     timers.get_circle_kernel += duration;
 
+    // Tiling configuration for blurTiledGPU
+    const size_t blur_tile_width = blockDim.x - ksize + 1;
+    dim3 blurGridDim(int(ceil((float)width / blur_tile_width)),
+                     int(ceil((float)height / blur_tile_width)));
+
     // Host buffers used during computation
     cudaEventRecord(start_step, 0);
     int *labels = new int[numPixels]; // Holds the final CCL symbollic image
@@ -160,8 +165,9 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
     timers.grayscale += duration;
 
     cudaEventRecord(start_step, 0);
-    blurGPU<<<gridDim, blockDim>>>(d_bgd, d_bgd, height, width,
-                                   d_gaussianKernel, ksize);
+    blurTiledGPU<<<blurGridDim, blockDim,
+                   blockDim.x * blockDim.x * sizeof(uchar)>>>(
+        d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
     cudaEventRecord(end_step, 0);
     cudaEventSynchronize(end_step);
     cudaEventElapsedTime(&duration, start_step, end_step);
@@ -206,8 +212,9 @@ BM_times benchGPU(cv::VideoCapture capture, dim3 gridDim, dim3 blockDim)
 
         // blur
         cudaEventRecord(start_step, 0);
-        blurGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
-                                       d_gaussianKernel, ksize);
+        blurTiledGPU<<<blurGridDim, blockDim,
+                       blockDim.x * blockDim.x * sizeof(uchar)>>>(
+            d_input, d_input, height, width, d_gaussianKernel, ksize);
         cudaEventRecord(end_step, 0);
         cudaEventSynchronize(end_step);
         cudaEventElapsedTime(&duration, start_step, end_step);
