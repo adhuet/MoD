@@ -795,7 +795,7 @@ int main(int argc, char **argv)
     std::cout << std::setfill('-') << std::setw(75) << "\n";
     std::cout << "GPU Bench (v" << _GPU_VERSION << "):" << std::endl;
 
-    dim3 blockDim(64, 64);
+    dim3 blockDim(32, 32);
     dim3 gridDim(int(ceil((float)width / blockDim.x)),
                  int(ceil((float)height / blockDim.y)));
 
