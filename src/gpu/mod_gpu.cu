@@ -19,18 +19,23 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
     }
 
     // Initialize all important constants
+    const int block_width = 32;
     const int height = background.rows;
     const int width = background.cols;
     const int numPixels = height * width;
     const size_t ksize = 15;
-    const float *gaussianKernel = getGaussianMatrix(ksize, 2.0);
+    const float sigma = 2.0;
+    const float *gaussianKernel = getGaussianMatrix(ksize, sigma);
     const uchar threshold = 20;
     const uchar maxval_tresh = 255;
     const int morphological_circle_diameter = 15;
     const uchar *circleKernel = getCircleKernel(morphological_circle_diameter);
-    dim3 blockDim(32, 32);
-    dim3 gridDim(int(ceil((float)width / blockDim.x)),
-                 int(ceil((float)height / blockDim.y)));
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)width / block_width)),
+                 int(ceil((float)height / block_width)));
+    const size_t blur_tile_width = blockDim.x - ksize + 1;
+    dim3 blurGridDim(int(ceil((float)width / blur_tile_width)),
+                     int(ceil((float)height / blur_tile_width)));
 
     // Host buffers used during computation
     int *labels = new int[numPixels]; // Holds the final CCL symbollic image
@@ -72,8 +77,9 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
                numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
     // Process background
     grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
-    blurGPU<<<gridDim, blockDim>>>(d_bgd, d_bgd, height, width,
-                                   d_gaussianKernel, ksize);
+    blurTiledGPU<<<blurGridDim, blockDim,
+                   block_width * block_width * sizeof(uchar)>>>(
+        d_bgd, d_bgd, height, width, d_gaussianKernel, ksize);
     // We do not this the original background buffer, so we release memory as
     // soon as possible
     cudaFree(d_background);
@@ -111,8 +117,10 @@ int renderObjectsInCaptureGPU(cv::VideoCapture capture)
         // Launch the algorithm ***********************************************
         // The follwing are done in place
         grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
-        blurGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
-                                       d_gaussianKernel, ksize);
+
+        blurTiledGPU<<<blurGridDim, blockDim,
+                       block_width * block_width * sizeof(uchar)>>>(
+            d_input, d_input, height, width, d_gaussianKernel, ksize);
         diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
         thresholdGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
                                             threshold, maxval_tresh);
