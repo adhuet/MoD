@@ -110,6 +110,7 @@ int main(int argc, char **argv)
     }
 
     // int retval = runGPU(capture);
-    int retval = renderObjectsInCaptureGPU(capture);
+    // int retval = renderObjectsInCaptureGPU(capture);
+    int retval = noRenderRun(capture, 4);
     return (retval == -1) ? EXIT_FAILURE : EXIT_SUCCESS;
 }

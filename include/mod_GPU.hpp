@@ -15,6 +15,7 @@
         cudaDeviceSynchronize();                                               \
     } while (0)
 
+int noRenderRun(cv::VideoCapture capture, int blockWidth);
 std::vector<cv::Rect> detectObjectInFrameGPU(const cv::Mat &background,
                                              const cv::Mat &frame);
 int renderObjectsInCaptureGPU(cv::VideoCapture capture);

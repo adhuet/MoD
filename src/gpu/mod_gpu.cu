@@ -14,6 +14,172 @@ __device__ __constant__ size_t c_morph_diameter = morph_circle_diameter;
 __device__ __constant__ uchar
     c_circleKernel[morph_circle_diameter * morph_circle_diameter];
 
+int noRenderRun(cv::VideoCapture capture, int blockWidth)
+{
+    cv::Mat frame;
+    cv::Mat background;
+    capture >> background;
+    if (background.empty())
+    {
+        std::cerr << "First frame of video (background) is empty!" << std::endl;
+        return -1;
+    }
+
+    // Initialize all important constants
+    const int block_width = blockWidth;
+    const int height = background.rows;
+    const int width = background.cols;
+    const int numPixels = height * width;
+    const float *gaussianKernel = getGaussianMatrix(gauss_ksize, sigma);
+    const uchar threshold = 20;
+    const uchar maxval_tresh = 255;
+    const uchar *circleKernel = getCircleKernel(morph_circle_diameter);
+    dim3 blockDim(block_width, block_width);
+    dim3 gridDim(int(ceil((float)width / block_width)),
+                 int(ceil((float)height / block_width)));
+    const size_t tile_width = blockDim.x + gauss_ksize - 1;
+
+    // Host buffers used during computation
+    int *labels = new int[numPixels]; // Holds the final CCL symbollic image
+    std::vector<cv::Rect> bboxes; // Holds the bboxes for a specific frame
+
+    // Device buffers used during computation
+    uchar3 *d_background; // This holds the original background temporarily
+    uchar3 *d_frame; // This holds the original frame temporarily
+
+    uchar *d_bgd; // This holds the gray blurred background throughout the whole
+                  // capture processing
+    uchar *d_input; // This hold the frame throughout all of the processing
+    uchar *d_swap; // This allows copy and manipulation of the frame
+
+    // float *d_gaussianKernel; // Device buffer for the blur kernel
+    // uchar *d_circleKernel; // Device buffer for the morphological kernel
+
+    int *d_labels; // This holds the symbollic image after CCL
+
+    // Allocations necessary for background
+    cudaMalloc(&d_bgd, numPixels * sizeof(uchar));
+    // cudaMalloc(&d_gaussianKernel, gauss_ksize * gauss_ksize * sizeof(float));
+    // cudaMalloc(&d_circleKernel,
+    //            morph_circle_diameter * morph_circle_diameter *
+    //            sizeof(uchar));
+    cudaMalloc(&d_background, numPixels * sizeof(uchar3));
+    // Initialization
+    // cudaMemcpy(d_gaussianKernel, gaussianKernel,
+    //            gauss_ksize * gauss_ksize * sizeof(float),
+    //            cudaMemcpyHostToDevice);
+    // cudaMemcpy(d_circleKernel, circleKernel,
+    //            morph_circle_diameter * morph_circle_diameter * sizeof(uchar),
+    //            cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(c_gaussianKernel, gaussianKernel,
+                       gauss_ksize * gauss_ksize * sizeof(float), 0,
+                       cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(c_circleKernel, circleKernel,
+                       morph_circle_diameter * morph_circle_diameter
+                           * sizeof(uchar),
+                       0, cudaMemcpyHostToDevice);
+    CUDA_WARN(cudaDeviceSynchronize());
+    CUDA_WARN(cudaDeviceSynchronize());
+    // Background processing
+    // Copy background to device
+    cudaMemcpy(d_background, background.ptr<uchar3>(0),
+               numPixels * sizeof(uchar3), cudaMemcpyHostToDevice);
+    // Process background
+    grayscaleGPU<<<gridDim, blockDim>>>(d_background, d_bgd, height, width);
+    blurTiledConstantGPU2<<<gridDim, blockDim,
+                            tile_width * tile_width * sizeof(uchar)>>>(
+        d_bgd, d_bgd, height, width);
+    cudaDeviceSynchronize();
+    // We do not this the original background buffer, so we release memory as
+    // soon as possible
+    cudaFree(d_background);
+
+    // Rest of the allocations for the frame processing
+    cudaMalloc(&d_frame, numPixels * sizeof(uchar3));
+    cudaMalloc(&d_input, numPixels * sizeof(uchar));
+    cudaMalloc(&d_swap, numPixels * sizeof(uchar));
+    cudaMalloc(&d_labels, numPixels * sizeof(int));
+
+    // Some cuda events for simple fps timing
+    cudaEvent_t start;
+    cudaEvent_t stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    float milliseconds = 0.0f;
+
+    // Simple fps timer
+    cudaEventRecord(start, 0);
+    // Use the capture and process frame by frame
+    for (;;)
+    {
+        // Get the frame
+        capture >> frame;
+        // End if we reach end of video
+        if (frame.empty())
+            break;
+
+        // Copy the frame to allocated buffer
+        cudaMemcpy(d_frame, frame.ptr<uchar3>(0), numPixels * sizeof(uchar3),
+                   cudaMemcpyHostToDevice);
+
+        // Launch the algorithm ***********************************************
+        // The follwing are done in place
+        grayscaleGPU<<<gridDim, blockDim>>>(d_frame, d_input, height, width);
+
+        blurTiledConstantGPU2<<<gridDim, blockDim,
+                                tile_width * tile_width * sizeof(uchar)>>>(
+            d_input, d_input, height, width);
+
+        diffGPU<<<gridDim, blockDim>>>(d_bgd, d_input, d_input, height, width);
+        thresholdGPU<<<gridDim, blockDim>>>(d_input, d_input, height, width,
+                                            threshold, maxval_tresh);
+
+        // We need the swap array here
+        //      Opening: dilate + erode
+        dilateTiledConstantGPU2<<<gridDim, blockDim,
+                                  tile_width * tile_width * sizeof(uchar)>>>(
+            d_input, d_swap, height, width);
+        erodeTiledConstantGPU2<<<gridDim, blockDim,
+                                 tile_width * tile_width * sizeof(uchar)>>>(
+            d_swap, d_input, height, width);
+
+        // CCL
+        initCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
+        mergeCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
+        compressCCL<<<gridDim, blockDim>>>(d_input, d_labels, height, width);
+
+        // Get the labels on the host
+        cudaMemcpy(labels, d_labels, numPixels * sizeof(int),
+                   cudaMemcpyDeviceToHost);
+
+        // Get the bboxes
+        bboxes = getBoundingBoxes(labels, width, height);
+        // Algorithm ends here ************************************************
+    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    float fps =
+        capture.get(cv::CAP_PROP_FRAME_COUNT) / (milliseconds / 1000.0f);
+    std::cout << "Total duration: " << milliseconds << "ms" << std::endl;
+    std::cout << "Avg FPS: " << fps << std::endl;
+
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+
+    cudaFree(d_labels);
+    cudaFree(d_swap);
+    cudaFree(d_input);
+    cudaFree(d_frame);
+    // cudaFree(d_circleKernel);
+    // cudaFree(d_gaussianKernel);
+    cudaFree(d_bgd);
+    delete[] labels;
+    delete[] circleKernel;
+    delete[] gaussianKernel;
+    return 0;
+}
+
 int renderObjectsInCaptureGPU(cv::VideoCapture capture)
 {
     cv::Mat frame;
