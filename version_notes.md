@@ -29,5 +29,6 @@ Changes:
 - [ ] Compute host matrix and kernel at compile time with constexpr (v1.1.3)
 
 Notes:
+- On 32x32 blocks, the use of shared memory for blur actually shows a serious drop in performance for reasons yet unknown. This might be a memory spill issue, and the shared memory might mess with the cache. Will need to complete the rest of the optimizations to be sure and test with 64x64, which looks promising.
 
 Effect:
