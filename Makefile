@@ -5,7 +5,7 @@ SHELL = bash
 INCLUDE = -Iinclude
 
 CPU_VERSION = 1.0
-GPU_VERSION = 1.0
+GPU_VERSION = 1.2
 OCV_VERSION = 1.0
 
 CFLAGS = -Wall -Werror -Wextra -O3 -std=c++17 -g
@@ -27,7 +27,7 @@ UTILS_SRC = $(wildcard $(addsuffix /*.cpp, src/utils))
 UTILS_OBJS = $(UTILS_SRC:.cpp=.o)
 
 # CUDA IMPLEMENTATION
-CUDA_FLAGS = -O3 -arch=sm_50 -Xcudafe --diag_suppress=611
+CUDA_FLAGS = -O3 -arch=sm_50 -Xcudafe --diag_suppress=611 -rdc=true
 CUDA_SRC = $(wildcard $(addsuffix /*.cu, src/gpu))
 CUDA_SRC := $(filter-out src/gpu/main.cu, $(CUDA_SRC))
 CUDA_OBJS = $(CUDA_SRC:.cu=.o)
@@ -63,7 +63,7 @@ $(TEST_BIN): $(UTILS_OBJS) $(TEST_OBJS) $(CPU_OBJS)
 check: $(TEST_BIN)
 	./testsuite -j4
 
-$(GPUTESTS_BIN): $(GPUTESTS_OBJS) $(CUDA_OBJS) $(UTILS_OBJS)
+$(GPUTESTS_BIN): $(GPUTESTS_OBJS) $(CUDA_OBJS) $(UTILS_OBJS) src/cpu/blur.o src/cpu/morph.o
 	$(NVCC) -o $@ $^ -lcriterion $(LD_LIBS)
 
 gpucheck: $(GPUTESTS_BIN)
@@ -81,7 +81,7 @@ run: $(CUDA_BIN)
 %.o: %.cu
 	$(NVCC) -c $(CUDA_FLAGS) $(CV_FLAGS) $(INCLUDE) -o $@ $<
 
-benchsuite: CUDA_FLAGS += -D_CPU_VERSION=1.0 -D_GPU_VERSION=1.0 -D_OCV_VERSION=1.0
+benchsuite: CUDA_FLAGS += -D_CPU_VERSION=$(CPU_VERSION) -D_GPU_VERSION=$(GPU_VERSION) -D_OCV_VERSION=$(OCV_VERSION)
 benchsuite: src/benchmark.o $(CPU_OBJS) $(UTILS_OBJS) $(CUDA_OBJS)
 	$(NVCC) -o $@ $^ $(LD_LIBS)
 
@@ -95,5 +95,9 @@ report: benchsuite
 	@echo Done
 clean:
 	$(RM) $(BINS) $(OBJS) src/cpu/main.o src/gpu/main.o src/benchmark.o gputestsuite benchsuite
+
+nvprof: CUDA_FLAGS += -lineinfo
+nvprof: $(CUDA_BIN)
+	nvprof --metrics achieved_occupancy,sm_efficiency,sm_cta_launch_latency,sm_activity,branch_efficiency,branch_divergence,cycles_elapsed,gld_transactions,gst_transactions,flop_count_sp,flop_count_dp,local_load_transactions_per_request,local_store_transactions_per_request,shared_load_transactions_per_request,shared_store_transactions_per_request,l1_cache_global_hit_rate,l1_cache_local_hit_rate,l2_l1_read_hit_rate,l2_l1_write_hit_rate,shared_efficiency,shared_utilization,registers_per_thread,shared_size_bytes --print-gpu-trace ./$(CUDA_BIN) $(INPUT_FILE)
 
 .PHONY: all clean run bench check gpucheck

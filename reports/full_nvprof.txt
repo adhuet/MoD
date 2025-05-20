@@ -1,0 +1,20 @@
+==68489== NVPROF is profiling process 68489, command: ./mod_gpu data/pigeon.mp4
+==68489== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+Total duration: 903.891ms
+Avg FPS: 137.185
+==68489== Profiling application: ./mod_gpu data/pigeon.mp4
+==68489== Profiling result:
+
+              Kernel  achieved_occupancy  sm_efficiency  branch_efficiency  flop_count_sp shared_efficiency  shared_utilization
+                                                      %                  %                                %
+        grayscaleGPU            0.812064          84.27             100.00        1001280              0.00            Idle (0)
+blurTiledConstantGPU            0.738575          98.99             100.00       92129856             24.96             Mid (4)
+        grayscaleGPU            0.810232          85.65             100.00        1001280              0.00            Idle (0)
+blurTiledConstantGPU            0.739220          99.06             100.00       92129856             24.96             Mid (4)
+             diffGPU            0.785808          82.60             100.00              0              0.00            Idle (0)
+        thresholdGPU            0.806869          66.39             100.00              0              0.00            Idle (0)
+dilateTiledConstantG            0.717766          99.15             100.00              0             24.93             Low (2)
+erodeTiledConstantGP            0.717814          99.13             100.00              0             24.93             Low (2)
+             initCCL            0.810692          83.75             100.00              0              0.00            Idle (0)
+            mergeCCL            0.773982          79.46             100.00              0              0.00            Idle (0)
+         compressCCL            0.743263          75.47             100.00              0              0.00            Idle (0)

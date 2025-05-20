@@ -1,0 +1,63 @@
+##########################################################################
+Filename: data/pigeon.mp4
+Dimensions: 596x336
+Framerate: 50fps
+Total nb of frames: 124
+Duration: 2480ms
+--------------------------------------------------------------------------
+OPENCV Bench (v1):
+FPS: 464.7
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscale              |      185.621μs          23017μs            8.45%
+blur                   |     318.0726μs          39441μs            14.5%
+diff                   |     15.69355μs           1946μs           0.715%
+threshold              |     11.69355μs           1450μs           0.532%
+morph                  |     1101.911μs         136637μs            50.2%
+connectedComps         |     169.7742μs          21052μs            7.73%
+bboxes                 |     105.7984μs          13119μs            4.82%
+
+Start to finish: 272ms
+--------------------------------------------------------------------------
+CPU Bench (v1):
+FPS: 2.2
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscale              |     1.072581ms            133ms           0.236%
+blur                   |     286.0806ms          35474ms          0.0629%
+  - getGaussianMatrix  |     16.96774μs           2104μs            3.73%
+diff                   |       288.25μs          35743μs          0.0634%
+threshold              |     309.8468μs          38421μs          0.0681%
+morph                  |     127.4113ms          15799ms              28%
+  - getCircleKernel    |     2.209677μs            274μs        0.000486%
+connectedComps         |        17.75ms           2201ms             3.9%
+bboxes                 |     18.58871ms           2305ms            4.09%
+
+Start to finish: 56.4s
+--------------------------------------------------------------------------
+GPU Bench (v1.2):
+blockDim: 16x16
+gridDim: 38x21
+FPS: 223.3
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscaleGPU           |     31.83406µs       3.947424ms           0.705%
+blurGPU                |     919.0955µs       113.9678ms            20.3%
+  - getGaussianMatrix  |   0.02270968µs       0.002816ms        0.000503%
+diffGPU                |      23.8671µs        2.95952ms           0.528%
+thresholdGPU           |     24.87794µs       3.084864ms           0.551%
+morph                  |     2270.881µs       281.5893ms            50.3%
+  - dilateGPU          |     1128.652µs       139.9529ms              25%
+  - erodeGPU           |     1130.441µs       140.1747ms              25%
+  - getCircleKernel    |  0.008774194µs       0.001088ms        0.000194%
+connectedComps         |     420.3071µs       52.11808ms             9.3%
+  - initCCL            |     23.84232µs       2.956448ms           0.528%
+  - mergeCCL           |     47.50168µs       5.890208ms            1.05%
+  - compressCCL        |       20.312µs       2.518688ms            0.45%
+bboxes                 |     352.8893µs       43.75827ms            7.81%
+Mem. Management        |     480.0885µs       59.53098ms            10.6%
+
+Start to finish: 0.56s

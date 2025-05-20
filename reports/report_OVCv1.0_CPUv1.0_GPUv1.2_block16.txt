@@ -1,0 +1,46 @@
+##########################################################################
+Filename: data/pigeon.mp4
+Dimensions: 596x336
+Framerate: 50fps
+Total nb of frames: 124
+Duration: 2480ms
+--------------------------------------------------------------------------
+OPENCV Bench (v1):
+FPS: 408.8
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscale              |     222.8145μs          27629μs            8.93%
+blur                   |     363.2742μs          45046μs            14.6%
+diff                   |     16.83871μs           2088μs           0.675%
+threshold              |     13.43548μs           1666μs           0.538%
+morph                  |     1157.871μs         143576μs            46.4%
+connectedComps         |     186.9032μs          23176μs            7.49%
+bboxes                 |     111.2016μs          13789μs            4.46%
+
+Start to finish: 309ms
+--------------------------------------------------------------------------
+GPU Bench (v1.2):
+blockDim: 16x16
+gridDim: 38x21
+FPS: 224
+
+STEP                   |      FRAME_AVG            TOTAL        EXEC_TIME
+
+grayscaleGPU           |     32.48748µs       4.028448ms           0.721%
+blurGPU                |     907.5257µs       112.5332ms            20.1%
+  - getGaussianMatrix  |   0.03225807µs          0.004ms        0.000716%
+diffGPU                |      24.2031µs       3.001184ms           0.537%
+thresholdGPU           |        24.48µs        3.03552ms           0.543%
+morph                  |     2246.633µs       278.5825ms            49.8%
+  - dilateGPU          |      1115.96µs        138.379ms            24.8%
+  - erodeGPU           |     1118.135µs       138.6487ms            24.8%
+  - getCircleKernel    |   0.01522581µs       0.001888ms        0.000338%
+connectedComps         |      413.247µs       51.24262ms            9.17%
+  - initCCL            |     23.17419µs         2.8736ms           0.514%
+  - mergeCCL           |     46.39794µs       5.753344ms            1.03%
+  - compressCCL        |     20.41806µs        2.53184ms           0.453%
+bboxes                 |     362.9897µs       45.01072ms            8.05%
+Mem. Management        |     478.1806µs        59.2944ms            10.6%
+
+Start to finish: 0.559s

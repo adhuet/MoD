@@ -22,7 +22,7 @@ void filter2D(const SImage &src, SImage &dst, float *kernel, size_t ksize)
                             * src.data[(y + i) * src.width + (x + j)];
                 }
             }
-            dst.data[y * dst.width + x] = static_cast<uchar>(sum);
+            dst.data[y * dst.width + x] = static_cast<uchar>(round(sum));
         }
     }
 }

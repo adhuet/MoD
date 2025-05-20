@@ -1,0 +1,37 @@
+==59692== NVPROF is profiling process 59692, command: ./mod_gpu data/pigeon.mp4
+Total duration: 589.091ms
+Avg FPS: 210.494
+==59692== Profiling application: ./mod_gpu data/pigeon.mp4
+==59692== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   30.77%  137.63ms       123  1.1189ms  1.0674ms  1.1932ms  erodeTiledConstantGPU2(unsigned char const *, unsigned char*, int, int)
+                   30.77%  137.60ms       123  1.1187ms  1.0677ms  1.2403ms  dilateTiledConstantGPU2(unsigned char const *, unsigned char*, int, int)
+                   25.30%  113.16ms       124  912.57us  867.02us  1.0046ms  blurTiledConstantGPU2(unsigned char const *, unsigned char*, int, int)
+                    3.58%  15.994ms       123  130.03us  121.72us  234.11us  [CUDA memcpy DtoH]
+                    2.76%  12.329ms       126  97.846us     608ns  125.28us  [CUDA memcpy HtoD]
+                    2.31%  10.330ms       123  83.986us  27.648us  140.44us  mergeCCL(unsigned char const *, int*, int, int)
+                    0.98%  4.3761ms       124  35.291us  32.447us  57.119us  grayscaleGPU(uchar3 const *, unsigned char*, int, int)
+                    0.94%  4.1868ms       123  34.038us  32.223us  36.351us  thresholdGPU(unsigned char const *, unsigned char*, int, int, unsigned char, unsigned char)
+                    0.90%  4.0402ms       123  32.846us  30.207us  48.191us  initCCL(unsigned char const *, int*, int, int)
+                    0.87%  3.8897ms       123  31.623us  29.440us  48.830us  diffGPU(unsigned char const *, unsigned char const *, unsigned char*, int, int)
+                    0.83%  3.7244ms       123  30.279us  27.519us  34.847us  compressCCL(unsigned char const *, int*, int, int)
+      API calls:   84.92%  473.09ms       247  1.9153ms  42.332us  4.4376ms  cudaMemcpy
+                   13.38%  74.567ms         6  12.428ms  2.4500us  74.460ms  cudaMalloc
+                    0.87%  4.8420ms      1109  4.3660us  2.5180us  76.246us  cudaLaunchKernel
+                    0.46%  2.5891ms         1  2.5891ms  2.5891ms  2.5891ms  cuLibraryLoadData
+                    0.19%  1.0821ms         5  216.42us     695ns  1.0760ms  cudaDeviceSynchronize
+                    0.06%  353.21us         1  353.21us  353.21us  353.21us  cuDeviceGetName
+                    0.06%  320.40us         6  53.400us  2.6770us  165.41us  cudaFree
+                    0.03%  156.73us       114  1.3740us     223ns  68.017us  cuDeviceGetAttribute
+                    0.01%  41.332us         2  20.666us  17.132us  24.200us  cudaEventCreate
+                    0.00%  27.083us         2  13.541us  7.2900us  19.793us  cudaMemcpyToSymbol
+                    0.00%  9.4500us         2  4.7250us  3.9530us  5.4970us  cudaEventRecord
+                    0.00%  6.5660us         1  6.5660us  6.5660us  6.5660us  cuDeviceGetPCIBusId
+                    0.00%  5.4950us         1  5.4950us  5.4950us  5.4950us  cudaEventSynchronize
+                    0.00%  5.2660us         2  2.6330us     420ns  4.8460us  cudaEventDestroy
+                    0.00%  2.1140us         3     704ns     249ns  1.5600us  cuDeviceGetCount
+                    0.00%  1.8430us         1  1.8430us  1.8430us  1.8430us  cudaEventElapsedTime
+                    0.00%     902ns         2     451ns     232ns     670ns  cuDeviceGet
+                    0.00%     592ns         1     592ns     592ns     592ns  cuDeviceTotalMem
+                    0.00%     468ns         1     468ns     468ns     468ns  cuModuleGetLoadingMode
+                    0.00%     315ns         1     315ns     315ns     315ns  cuDeviceGetUuid
